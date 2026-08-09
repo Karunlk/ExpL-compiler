@@ -2,3 +2,5 @@ a.out
 lex.yy.c
 test.l
 xsm_expl/
+y.tab.h
+y.tab.c
