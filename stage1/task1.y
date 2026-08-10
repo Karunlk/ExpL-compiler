@@ -8,10 +8,11 @@
 
 %union{
   struct tnode *no;
+  int integer;
 }
 
 %type <no> expr program
-%type <no> NUM
+%type <integer> NUM
 %token NUM END PLUS MINUS DIV MUL
 %left PLUS MINUS
 %left MUL DIV
@@ -24,7 +25,7 @@ expr: expr PLUS expr  {$$ = makeOperatorNode('+',$1,$3);}
     | expr MUL expr   {$$ = makeOperatorNode('*',$1,$3);}
     | expr DIV expr   {$$ = makeOperatorNode('/',$1,$3);}
     | '('expr ')'     {$$ = $2;}
-    |   NUM           {$$ = $1;}
+    |   NUM           {$$ = makeleafNode($1);}
     ;
 
 %%
