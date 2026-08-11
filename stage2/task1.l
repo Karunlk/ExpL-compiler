@@ -19,7 +19,7 @@
                         yylval.str = strdup(yytext);
                         return ID;
                     }
-[ \t\n]+            ;       /* Ignore whitespace */
+[ \t\n]+            {}
 "("                 { return '('; }
 ")"                 { return ')'; }
 ";"                 { return ';'; }

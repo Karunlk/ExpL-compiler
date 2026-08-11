@@ -1,5 +1,4 @@
-tnode* createTree(int val, int type, char *c,
-                  tnode *l, tnode *r)
+tnode* createTree(int val, int type, char *c,tnode *l, tnode *r)
 {
     tnode *temp = (tnode *)malloc(sizeof(tnode));
 
