@@ -6,22 +6,8 @@
 
     int yylex(void);
     void yyerror(const char *s);
-
     tnode *root = NULL;
 %}
-
-%token BEGIN_TOKEN
-%token END_TOKEN
-%token READ
-%token WRITE
-%token <str> ID
-%token <val> NUM
-
-/* Operators */
-%left '+'
-%left '-'
-%left '*'
-%left '/'
 
 %union {
     int val;
@@ -29,17 +15,14 @@
     struct tnode *node;
 }
 
-%type <node> program
-%type <node> slist
-%type <node> stmt
-%type <node> inputstmt
-%type <node> outputstmt
-%type <node> asgstmt
-%type <node> expr
-
+%token BEGIN_TOKEN END_TOKEN READ WRITE
+%token <str> ID
+%token <val> NUM
+%left '+' '-'
+%left '*' '/'
+%type <node> program slist stmt inputstmt outputstmt asgstmt expr
 
 %%
-
 program: BEGIN_TOKEN slist END_TOKEN ';'
             {
               root = createTree(0, 0, "PROGRAM", $2, NULL);
@@ -55,7 +38,6 @@ program: BEGIN_TOKEN slist END_TOKEN ';'
             }
         ;
 
-
 slist: slist stmt
             {
                 $$ = createTree(0, 0, NULL, $1, $2);
@@ -67,7 +49,6 @@ slist: slist stmt
               $$ = $1;
             }
      ;
-
 
 stmt: inputstmt
       {
@@ -85,7 +66,6 @@ stmt: inputstmt
       }
     ;
 
-
 inputstmt: READ '(' ID ')' ';'
             {
               $$ = createTree(0, TYPE_INT, NULL,
@@ -100,14 +80,12 @@ inputstmt: READ '(' ID ')' ';'
             }
         ;
 
-
 outputstmt: WRITE '(' expr ')' ';'
             {
               $$ = createTree(0, TYPE_INT, NULL, $3, NULL);
               $$->nodetype = NODE_WRITE;
             }
           ;
-
 
 asgstmt: ID '=' expr ';'
         {
@@ -124,7 +102,6 @@ asgstmt: ID '=' expr ';'
               free($1);
         }
         ;
-
 
 expr: expr '+' expr
       {
@@ -169,7 +146,6 @@ expr: expr '+' expr
           free($1);
       }
     ;
-
 %%
 
 
@@ -179,8 +155,21 @@ void yyerror(const char *s)
 }
 
 
-int main(void)
+int main(int argc, char *argv[])
 {
+  extern FILE *yyin;
+    if (argc != 2)
+    {
+        printf("Usage: %s <input-file>\n",argv[0]);
+        return 1;
+    }
+    yyin = fopen(argv[1], "r");
+
+    if (yyin == NULL)
+    {
+        perror("Cannot open input file");
+        return 1;
+    }
     if (yyparse() == 0) {
         printf("Abstract Syntax Tree:\n");
         printTree(root, 0);
