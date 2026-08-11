@@ -185,8 +185,6 @@ int main(int argc, char *argv[])
 
     if (yyparse() == 0)
     {
-        printf("Enter Input values for program compiled:\n");
-
         evaluate(root);
 
         freeTree(root);
