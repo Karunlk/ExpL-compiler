@@ -185,6 +185,7 @@ int main(int argc, char *argv[])
 
     if (yyparse() == 0)
     {
+        printf("Enter input values for READ statements in %s:\n", argv[1]);
         evaluate(root);
 
         freeTree(root);
