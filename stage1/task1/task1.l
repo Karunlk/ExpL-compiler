@@ -2,7 +2,7 @@
     #include <stdio.h>
     #include <stdlib.h>
     #include "y.tab.h"
-    #include "exprtree.h"
+    #include "task1.h"
 
     int number;
 %}
@@ -16,7 +16,7 @@
 [ \t]  {}
 [()]   {return *yytext;}
 [\n]   {return END;}
-. {yyerror("Invalid character\n");exit(1);}
+.      {yyerror("Invalid character\n");exit(1);}
 %%
 
 int yywrap(void)
