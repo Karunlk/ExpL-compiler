@@ -1,0 +1,11 @@
+begin
+    sum = 0;
+    a = 1;
+
+    do
+        sum = sum + a;
+        a = a + 1;
+    while (a < 5);
+
+    write(sum);
+end;

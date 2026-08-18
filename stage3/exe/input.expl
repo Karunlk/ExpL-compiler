@@ -1,0 +1,14 @@
+begin
+    read(n);
+    sum = 0;
+
+    while (n > 0) do
+        read(a);
+        if (a < 0) then
+            continue; endif;
+        sum = sum + a;
+        n = n - 1;
+    endwhile;
+
+    write(sum);
+end;
