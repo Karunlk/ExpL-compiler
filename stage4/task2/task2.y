@@ -136,6 +136,32 @@ inputstmt : READ '(' ID ')' ';'
 
               free($3);
           }
+          | READ '(' ID '[' expr ']' ')' ';'
+          {
+                gsymbol *entry;
+                tnode * arraynode;
+
+                entry = lookup($3);
+                if(entry == NULL)
+                {
+                    printf("Error: Variable %s not declared\n",$3);
+                    exit(1);
+                }
+                if(entry->size <=1)
+                {
+                    printf("Error: %s is not an array but declared as array\n",$3);
+                    exit(1);
+                }
+                if($5->type != TYPE_INT)
+                {
+                    printf("Error: Array index must be of type Integer\n");
+                    exit(1);
+                }
+                arraynode = createTree(0,entry->type,$3,NODE_ARRAY,$5,NULL,NULL);
+                arraynode->Gentry = entry;
+                $$ = createTree(0,TYPE_NONE,NULL,NODE_READ,arraynode,NULL,NULL);
+                free($3);
+          }
           ;
 
 outputstmt : WRITE '(' expr ')' ';'
@@ -159,6 +185,37 @@ asgstmt : ID '=' expr ';'
             idnode = createTree(0,entry->type,$1,NODE_ID,NULL,NULL,NULL);
             idnode->Gentry = entry;
             $$ = createTree(0,TYPE_NONE,NULL,NODE_ASSIGN,idnode,NULL,$3);
+            free($1);
+        }
+        | ID '[' expr ']' '=' expr ';'
+        {
+            gsymbol * entry;
+            tnode* arraynode;
+
+            entry = lookup($1);
+            if(entry == NULL)
+            {
+                printf("Error: Variable %s not declared\n",$1);
+                exit(1);
+            }
+            if(entry->size <=1)
+            {
+                printf("Error: %s is not an array but declared as array\n",$1);
+                exit(1);
+            }
+            if($3->type != TYPE_INT)
+            {
+                printf("Error: Array index must be of type Integer\n");
+                exit(1);
+            }
+            if(entry->type != $6->type)
+            {
+                printf("Error: Type mismatch in assignment to array %s\n",$1);
+                exit(1);
+            }
+            arraynode = createTree(0,entry->type,$1,NODE_ARRAY,$3,NULL,NULL);
+            arraynode->Gentry = entry;
+            $$ = createTree(0,TYPE_NONE,NULL,NODE_ASSIGN,arraynode,NULL,$6);
             free($1);
         }
         ;
@@ -241,9 +298,19 @@ varlist : varlist ',' ID
             install($3, current_type, 1);
             free($3);
         }
+        | varlist ',' ID '[' NUM ']'
+        {
+            install($3, current_type, $5);
+            free($3);
+        }
         | ID
         {
             install($1, current_type, 1);
+            free($1);
+        }
+        | ID '[' NUM ']'
+        {
+            install($1, current_type, $3);
             free($1);
         }
         ;
@@ -314,6 +381,29 @@ expr : expr '+' expr
 
          free($1);
      }
+     | ID '[' expr ']'
+     {
+        gsymbol * entry;
+        entry = lookup($1);
+        if(entry == NULL)
+        {
+            printf("Error: Variable %s not declared\n",$1);
+            exit(1);
+        }
+        if(entry->size <=1)
+        {
+            printf("Error: %s is not an array but declared as array\n",$1);
+            exit(1);
+        }
+        if($3->type != TYPE_INT)
+        {
+            printf("Error: Array index must be of type Integer\n");
+            exit(1);
+        }
+        $$ = createTree(0,entry->type,$1,NODE_ARRAY,$3,NULL,NULL);
+        $$->Gentry = entry;
+        free($1);
+     }
      | STRCONST
      {
             $$ = createTree(0,TYPE_STR,$1,NODE_STRCONST,NULL,NULL,NULL);
@@ -374,6 +464,6 @@ int main(int argc, char *argv[])
     fclose(target_file);
     fclose(yyin);
     freeTree(root);
-
+    freeGsymbol();
     return 0;
 }

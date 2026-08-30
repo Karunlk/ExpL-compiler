@@ -36,6 +36,7 @@
 #define NODE_DOWHILE    23
 
 #define NODE_STRCONST   24
+#define NODE_ARRAY      25
 #define TYPE_BOOL        0
 #define TYPE_INT         1
 #define TYPE_STR         2
@@ -76,6 +77,7 @@ int getAddress(gsymbol *entry);
 gsymbol* lookup(char* name);
 void install(char* name, int type, int size);
 void printGsymbol(void);
+void freeGsymbol(void);
 
 extern gsymbol *Ghead;
 

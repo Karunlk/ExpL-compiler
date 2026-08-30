@@ -746,3 +746,23 @@ void freeTree(tnode *root)
 
     free(root);
 }
+
+void freeGsymbol()
+{
+    gsymbol *temp;
+    gsymbol *next;
+
+    temp = Ghead;
+
+    while(temp != NULL)
+    {
+        next = temp->next;
+
+        free(temp->name);
+        free(temp);
+
+        temp = next;
+    }
+
+    Ghead = NULL;
+}

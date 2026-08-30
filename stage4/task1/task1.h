@@ -76,6 +76,7 @@ int getAddress(gsymbol *entry);
 gsymbol* lookup(char* name);
 void install(char* name, int type, int size);
 void printGsymbol(void);
+void freeGsymbol(void);
 
 extern gsymbol *Ghead;
 

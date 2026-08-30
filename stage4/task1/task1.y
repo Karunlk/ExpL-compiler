@@ -361,6 +361,6 @@ int main(int argc, char *argv[])
     }
 
     fclose(yyin);
-
+    freeGsymbol();
     return 0;
 }

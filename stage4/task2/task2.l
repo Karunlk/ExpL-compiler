@@ -52,6 +52,8 @@
 
 [ \t\n]+                ;
 
+"["                     { return '['; }
+"]"                     { return ']'; }
 "("                     { return '('; }
 ")"                     { return ')'; }
 ";"                     { return ';'; }

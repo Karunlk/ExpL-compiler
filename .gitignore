@@ -4,3 +4,6 @@ test.l
 xsm_expl/
 y.tab.h
 y.tab.c
+label_translate
+output.o
+output.xsm

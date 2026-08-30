@@ -85,6 +85,11 @@ void install(char *name, int type, int size)
     }
     else
     {
+        if(Ghead->binding + Ghead->size + newSymbol->size > 5119)
+        {
+            printf("Error: Insufficient Memory\n");
+            exit(1);
+        }
         newSymbol->binding = Ghead->binding + Ghead->size;
     }
         newSymbol->next = Ghead;
@@ -234,137 +239,6 @@ tnode* createTree(int val, int type, char *c, int nodetype, tnode *l, tnode *m, 
     return temp;
 }
 
-void printTree(tnode *root, int level)
-{
-    int i;
-
-    if (root == NULL)
-        return;
-
-    for (i = 0; i < level; i++)
-        printf("    ");
-
-    switch (root->nodetype)
-    {
-        case NODE_PROGRAM:
-            printf("PROGRAM\n");
-            break;
-
-        case NODE_CONNECTOR:
-            printf("CONNECTOR\n");
-            break;
-
-        case NODE_NUM:
-            printf("NUM(%d)\n", root->val);
-            break;
-
-        case NODE_ID:
-            printf("ID(%s)", root->varname);
-
-            if (root->Gentry != NULL)
-            {
-                printf(" [type=");
-
-                if (root->Gentry->type == TYPE_INT)
-                    printf("INT");
-                else if (root->Gentry->type == TYPE_STR)
-                    printf("STR");
-
-                printf(", binding=%d]",
-                       root->Gentry->binding);
-            }
-
-            printf("\n");
-            break;
-
-        case NODE_PLUS:
-            printf("PLUS\n");
-            break;
-
-        case NODE_MINUS:
-            printf("MINUS\n");
-            break;
-
-        case NODE_MUL:
-            printf("MUL\n");
-            break;
-
-        case NODE_DIV:
-            printf("DIV\n");
-            break;
-
-        case NODE_ASSIGN:
-            printf("ASSIGN\n");
-            break;
-
-        case NODE_READ:
-            printf("READ\n");
-            break;
-
-        case NODE_WRITE:
-            printf("WRITE\n");
-            break;
-
-        case NODE_LT:
-            printf("LT\n");
-            break;
-
-        case NODE_GT:
-            printf("GT\n");
-            break;
-
-        case NODE_LE:
-            printf("LE\n");
-            break;
-
-        case NODE_GE:
-            printf("GE\n");
-            break;
-
-        case NODE_NE:
-            printf("NE\n");
-            break;
-
-        case NODE_EQ:
-            printf("EQ\n");
-            break;
-
-        case NODE_IF:
-            printf("IF\n");
-            break;
-
-        case NODE_WHILE:
-            printf("WHILE\n");
-            break;
-
-        case NODE_REPEAT:
-            printf("REPEAT\n");
-            break;
-
-        case NODE_DOWHILE:
-            printf("DOWHILE\n");
-            break;
-
-        case NODE_BREAK:
-            printf("BREAK\n");
-            break;
-
-        case NODE_CONTINUE:
-            printf("CONTINUE\n");
-            break;
-
-        case NODE_STRCONST:
-            printf("STRCONST(%s)\n", root->varname);
-            break;
-
-        default:
-            printf("UNKNOWN\n");
-    }
-
-    printTree(root->left, level + 1);
-    printTree(root->middle, level + 1);
-    printTree(root->right, level + 1);
-}
 
 int codeGen(tnode *t, FILE *target_file)
 {
@@ -396,6 +270,20 @@ int codeGen(tnode *t, FILE *target_file)
         address = getAddress(t->Gentry);
         fprintf(target_file, "MOV R%d, [%d]\n", reg, address);
         return reg;
+    }
+
+    if(t->nodetype == NODE_ARRAY)
+    {
+        int indexreg = codeGen(t->left, target_file);
+        int addressreg = getReg();
+        fprintf(target_file,"MOV R%d, %d\n",addressreg,t->Gentry->binding);
+        fprintf(target_file, "ADD R%d, R%d\n",indexreg,addressreg);
+        freeReg(addressreg);
+        int valreg = getReg();
+        fprintf(target_file, "MOV R%d, [R%d]\n",valreg,indexreg);
+        freeReg(indexreg);
+        return valreg;
+
     }
 
     if (t->nodetype == NODE_PLUS)
@@ -511,9 +399,21 @@ int codeGen(tnode *t, FILE *target_file)
     if (t->nodetype == NODE_ASSIGN)
     {
         i = codeGen(t->right, target_file);
-        address = getAddress(t->left->Gentry);
-
-        fprintf(target_file, "MOV [%d], R%d\n", address, i);
+        if(t->left->nodetype == NODE_ID)
+        {
+            address = getAddress(t->left->Gentry);
+            fprintf(target_file, "MOV [%d], R%d\n", address, i);
+        }
+        else if(t->left->nodetype == NODE_ARRAY)
+        {
+            int idxreg = codeGen(t->left->left,target_file);
+            int addressreg = getReg();
+            fprintf(target_file,"MOV R%d, %d\n",addressreg,t->left->Gentry->binding);
+            fprintf(target_file, "ADD R%d, R%d\n",idxreg,addressreg);
+            fprintf(target_file, "MOV [R%d], R%d\n",idxreg,i);
+            freeReg(addressreg);
+            freeReg(idxreg);
+        }
 
         freeReg(i);
 
@@ -522,15 +422,37 @@ int codeGen(tnode *t, FILE *target_file)
 
     if (t->nodetype == NODE_READ)
     {
-        address = getAddress(t->left->Gentry);
+        int addressreg;
+
+        if (t->left->nodetype == NODE_ID)
+        {
+            addressreg = getReg();
+            address = getAddress(t->left->Gentry);
+            fprintf(target_file, "MOV R%d, %d\n", addressreg, address);
+        }
+        else if (t->left->nodetype == NODE_ARRAY)
+        {
+            int basereg;
+
+            addressreg = codeGen(t->left->left, target_file);
+            basereg = getReg();
+            fprintf(target_file, "MOV R%d, %d\n", basereg, t->left->Gentry->binding);
+            fprintf(target_file, "ADD R%d, R%d\n", addressreg, basereg);
+            freeReg(basereg);
+        }
+        else
+        {
+            printf("Error: read requires a variable or array element\n");
+            exit(1);
+        }
+
         reg = getReg();
 
         fprintf(target_file, "MOV R%d, \"Read\"\n", reg);
         fprintf(target_file, "PUSH R%d\n", reg);
         fprintf(target_file, "MOV R%d, -1\n", reg);
         fprintf(target_file, "PUSH R%d\n", reg);
-        fprintf(target_file, "MOV R%d, %d\n", reg, address);
-        fprintf(target_file, "PUSH R%d\n", reg);
+        fprintf(target_file, "PUSH R%d\n", addressreg);
         fprintf(target_file, "PUSH R%d\n", reg);
         fprintf(target_file, "PUSH R%d\n", reg);
         fprintf(target_file, "CALL 0\n");
@@ -542,6 +464,7 @@ int codeGen(tnode *t, FILE *target_file)
         fprintf(target_file, "POP R%d\n", reg);
 
         freeReg(reg);
+        freeReg(addressreg);
 
         return -1;
     }
@@ -746,4 +669,24 @@ void freeTree(tnode *root)
         free(root->varname);
 
     free(root);
+}
+
+void freeGsymbol()
+{
+    gsymbol *temp;
+    gsymbol *next;
+
+    temp = Ghead;
+
+    while(temp != NULL)
+    {
+        next = temp->next;
+
+        free(temp->name);
+        free(temp);
+
+        temp = next;
+    }
+
+    Ghead = NULL;
 }
