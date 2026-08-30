@@ -2,9 +2,11 @@
 
 CC="gcc"
 
-ADDRESS="$HOME/Documents/compiler-lab/stage4/task2/"
-LEXFILE="task2.l"
-YACCFILE="task2.y"
+STAGE="stage4"
+TASK="exe1"
+ADDRESS="$HOME/Documents/compiler-lab/$STAGE/$TASK/"
+LEXFILE="$TASK.l"
+YACCFILE="$TASK.y"
 INPUTFILE="input.expl"
 
 cd $ADDRESS
