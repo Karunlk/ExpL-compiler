@@ -3,7 +3,7 @@
 CC="gcc"
 
 STAGE="stage4"
-TASK="exe1"
+TASK="exe2"
 ADDRESS="$HOME/Documents/compiler-lab/$STAGE/$TASK/"
 LEXFILE="$TASK.l"
 YACCFILE="$TASK.y"

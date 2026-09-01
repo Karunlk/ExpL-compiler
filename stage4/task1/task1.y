@@ -351,8 +351,8 @@ int main(int argc, char *argv[])
     {
         printGsymbol();
 
-        printf("\nAST:\n");
-        printTree(root, 0);
+        // printf("\nAST:\n");
+        // printTree(root, 0);
         freeTree(root);
     }
     else

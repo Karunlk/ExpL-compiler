@@ -1,7 +1,7 @@
 #! /bin/bash
 
 STAGE="stage4"
-TASK="exe1"
+TASK="exe2"
 XSMADDRESS="$HOME/Documents/compiler-lab/xsm_expl"
 ADDRESS="/$STAGE/$TASK"
 
