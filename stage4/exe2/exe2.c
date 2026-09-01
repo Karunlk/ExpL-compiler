@@ -223,11 +223,13 @@ tnode* createTree(int val, int type, char *c, int nodetype, tnode *l, tnode *m, 
         type = TYPE_NONE;
     }
 
-    else if (nodetype == NODE_WHILE)
+    else if (nodetype == NODE_WHILE ||
+             nodetype == NODE_REPEAT ||
+             nodetype == NODE_DOWHILE)
     {
         if (l->type != TYPE_BOOL)
         {
-            printf("Type mismatch: while condition must be boolean\n");
+            printf("Type mismatch: loop condition must be boolean\n");
             exit(1);
         }
 
