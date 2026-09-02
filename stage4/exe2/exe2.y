@@ -364,25 +364,15 @@ continuestmt : CONTINUE ';'
              }
              ;
 
-declarations : DECL decllist ENDDECL
-             {
-             }
-             | DECL ENDDECL
-             {
-             }
+declarations : DECL decllist ENDDECL    {}
+             | DECL ENDDECL {}
              ;
 
-decllist : decllist decl
-         {
-         }
-         | decl
-         {
-         }
+decllist : decllist decl  {}
+         | decl {}
          ;
 
-decl : type varlist ';'
-     {
-     }
+decl : type varlist ';'  {}
      ;
 
 type : INT

@@ -1,10 +1,14 @@
 decl
-    int a,*p;
+    int a,*b;
+   str p, *q;
 enddecl
 
 begin
     a = 10;
-    p = &a;
-    *p = 20;
+    b = &a;
+    *b = 20;
     write(a);
+    p = "Hello, World!";
+    q = &p;
+    write(*q);
 end;
