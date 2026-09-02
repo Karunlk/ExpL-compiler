@@ -630,8 +630,6 @@ int main(int argc, char *argv[])
         codeGen(root,target_file);
         fprintf(target_file,"INT 10\n");
         printf("Object file generated as output.o\n");
-        printf("AST:\n");
-        printTree(root, 0);
     }
     else
     {

@@ -6,7 +6,7 @@ enddecl
 begin
     a = 10;
     b = &a;
-    *b = 20;
+    *b=*b+1;
     write(a);
     p = "Hello, World!";
     q = &p;
