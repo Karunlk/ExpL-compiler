@@ -247,6 +247,167 @@ tnode* createTree(int val, int type, char *c, int nodetype, tnode *l, tnode *m, 
     return temp;
 }
 
+void printTree(tnode *root, int level)
+{
+    int i;
+
+    if (root == NULL)
+        return;
+
+    for (i = 0; i < level; i++)
+        printf("    ");
+
+    switch (root->nodetype)
+    {
+        case NODE_PROGRAM:
+            printf("PROGRAM\n");
+            break;
+
+        case NODE_CONNECTOR:
+            printf("CONNECTOR\n");
+            break;
+
+        case NODE_NUM:
+            printf("NUM(%d)\n", root->val);
+            break;
+
+        case NODE_ID:
+            printf("ID(%s)", root->varname);
+
+            if (root->Gentry != NULL)
+            {
+                printf(" [type=");
+
+                if (root->Gentry->type == TYPE_INT)
+                    printf("INT");
+                else if (root->Gentry->type == TYPE_STR)
+                    printf("STR");
+
+                printf(", binding=%d]",
+                       root->Gentry->binding);
+            }
+
+            printf("\n");
+            break;
+
+        case NODE_PLUS:
+            printf("PLUS\n");
+            break;
+
+        case NODE_MINUS:
+            printf("MINUS\n");
+            break;
+
+        case NODE_MUL:
+            printf("MUL\n");
+            break;
+
+        case NODE_DIV:
+            printf("DIV\n");
+            break;
+
+        case NODE_ASSIGN:
+            printf("ASSIGN\n");
+            break;
+
+        case NODE_READ:
+            printf("READ\n");
+            break;
+
+        case NODE_WRITE:
+            printf("WRITE\n");
+            break;
+
+        case NODE_LT:
+            printf("LT\n");
+            break;
+
+        case NODE_GT:
+            printf("GT\n");
+            break;
+
+        case NODE_LE:
+            printf("LE\n");
+            break;
+
+        case NODE_GE:
+            printf("GE\n");
+            break;
+
+        case NODE_NE:
+            printf("NE\n");
+            break;
+
+        case NODE_EQ:
+            printf("EQ\n");
+            break;
+
+        case NODE_IF:
+            printf("IF\n");
+            break;
+
+        case NODE_WHILE:
+            printf("WHILE\n");
+            break;
+
+        case NODE_REPEAT:
+            printf("REPEAT\n");
+            break;
+
+        case NODE_DOWHILE:
+            printf("DOWHILE\n");
+            break;
+
+        case NODE_BREAK:
+            printf("BREAK\n");
+            break;
+
+        case NODE_CONTINUE:
+            printf("CONTINUE\n");
+            break;
+
+        case NODE_STRCONST:
+            printf("STRCONST(%s)\n", root->varname);
+            break;
+        case NODE_ARRAY:
+            printf("ARRAY(%s) ", root->varname);
+            if(root->Gentry != NULL)
+            {
+                printf(" [type=");
+
+                if (root->Gentry->type == TYPE_INT)
+                    printf("INT");
+                else if (root->Gentry->type == TYPE_STR)
+                    printf("STR");
+
+                printf(", binding=%d]\n",
+                       root->Gentry->binding);
+            }
+            break;
+        case NODE_2DARRAY:
+            printf("2DARRAY(%s) ", root->varname);
+            if(root->Gentry != NULL)
+            {
+                printf(" [type=");
+                if (root->Gentry->type == TYPE_INT)
+                    printf("INT");
+                else if (root->Gentry->type == TYPE_STR)
+                    printf("STR");
+
+                printf(", binding=%d]\n",
+                       root->Gentry->binding);
+            }
+            break;
+
+        default:
+            printf("UNKNOWN\n");
+    }
+
+    printTree(root->left, level + 1);
+    printTree(root->middle, level + 1);
+    printTree(root->right, level + 1);
+}
+
 /* Returns a register containing the address of a 1D or 2D array element. */
 static int generateArrayAddress(tnode *arraynode, FILE *target_file)
 {
