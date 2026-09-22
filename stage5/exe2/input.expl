@@ -1,5 +1,6 @@
 decl
   tuple student (str name, int roll_no, str branchname, int year_of_admission) a, b;
+  int arr[2][3];
 enddecl
 
 int main()

@@ -34,6 +34,10 @@
 #define NODE_ARRAY 22
 #define NODE_WHILE 23
 #define NODE_AND 24
+#define NODE_REPEAT 25
+#define NODE_DOWHILE 26
+#define NODE_BREAK 27
+#define NODE_CONTINUE 28
 
 struct Paramstruct;
 typedef struct Paramstruct {
@@ -46,6 +50,8 @@ typedef struct Gsymbol {
     char *name;
     int type;
     int size;
+    int rows;
+    int columns;
     int binding;
     int dimension;
     Paramstruct *paramlist;
@@ -56,6 +62,10 @@ typedef struct Gsymbol {
 typedef struct Lsymbol {
     char *name;
     int type;
+    int size;
+    int rows;
+    int columns;
+    int dimension;
     int binding;
     struct Lsymbol *next;
 } Lsymbol;
@@ -86,7 +96,8 @@ extern FunctionAst *functions;
 
 Gsymbol *lookupGlobal(const char *name);
 void installGlobal(const char *name, int type, Paramstruct *params);
-void installGlobalVariable(const char *name, int type, int size);
+void installGlobalVariable(const char *name, int type, int size, int rows,
+                           int columns, int dimension);
 Paramstruct *makeParam(const char *name, int type);
 Paramstruct *appendParam(Paramstruct *head, Paramstruct *param);
 void freeParams(Paramstruct *params);
@@ -95,7 +106,8 @@ void checkSignature(Gsymbol *function, int type, Paramstruct *params);
 Lsymbol *lookupLocal(const char *name);
 int lookupVisible(const char *name, Gsymbol **global, Lsymbol **local);
 void beginFunctionScope(Paramstruct *params);
-void installLocal(const char *name, int type);
+void installLocal(const char *name, int type, int size, int rows,
+                  int columns, int dimension);
 void endFunctionScope(void);
 void freeLocalTable(Lsymbol *locals);
 

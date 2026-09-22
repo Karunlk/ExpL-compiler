@@ -133,6 +133,56 @@ void installFunction(const char *name, int type, Paramstruct *paramlist)
     Ghead = entry;
 }
 
+void checkFunctionDefinition(const char *name, int type, Paramstruct *paramlist)
+{
+    Gsymbol *function = lookup(name);
+    Paramstruct *declared;
+    Paramstruct *defined;
+
+    if (strcmp(name, "main") == 0)
+    {
+        if (type != TYPE_INT || paramlist != NULL)
+        {
+            fprintf(stderr, "Error: main must be declared as int main()\n");
+            exit(EXIT_FAILURE);
+        }
+        return;
+    }
+    if (function == NULL || function->flabel < 0)
+    {
+        fprintf(stderr, "Error: function %s has no declaration\n", name);
+        exit(EXIT_FAILURE);
+    }
+    if (function->defined)
+    {
+        fprintf(stderr, "Error: function %s is defined more than once\n", name);
+        exit(EXIT_FAILURE);
+    }
+    if (function->type != type)
+    {
+        fprintf(stderr, "Error: return type mismatch for function %s\n", name);
+        exit(EXIT_FAILURE);
+    }
+    declared = function->paramlist;
+    defined = paramlist;
+    while (declared != NULL && defined != NULL)
+    {
+        if (declared->type != defined->type || strcmp(declared->name, defined->name) != 0)
+        {
+            fprintf(stderr, "Error: parameter name or type mismatch for function %s\n", name);
+            exit(EXIT_FAILURE);
+        }
+        declared = declared->next;
+        defined = defined->next;
+    }
+    if (declared != NULL || defined != NULL)
+    {
+        fprintf(stderr, "Error: parameter count mismatch for function %s\n", name);
+        exit(EXIT_FAILURE);
+    }
+    function->defined = 1;
+}
+
 void printGsymbol(void)
 {
     Gsymbol *entry;

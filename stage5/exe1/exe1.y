@@ -34,6 +34,7 @@ static int dereferencedType(int type)
 %token <str> ID STRCONST
 %token <val> NUM
 %type <type> type
+%type <type> global_type
 %type <type> return_type
 %type <param> paramlist param
 %type <node> expr arglist stmt stmtlist stmtseq
@@ -50,18 +51,22 @@ declarations : DECL declaration_list ENDDECL | DECL ENDDECL | /* empty */
 ;
 declaration_list : declaration_list declaration | declaration
 ;
-declaration : return_type declaration_items ';'
+declaration : global_type declaration_items ';'
+            | global_type '*' ID '(' paramlist ')' ';'
+              { installGlobal($3, pointerType($1), (Paramstruct *)$5); free($3); }
+            | global_type '*' ID ';'
+              { installGlobalVariable($3, pointerType($1), 1, 0, 0, 0); free($3); }
 ;
 declaration_items : declaration_items ',' declaration_item | declaration_item
 ;
 declaration_item : ID
-                   { installGlobalVariable($1, declaredType, 1); free($1); }
+                   { installGlobalVariable($1, declaredType, 1, 0, 0, 0); free($1); }
                  | ID '[' NUM ']'
-                   { if ($3 <= 0) semanticError("array size must be positive", NULL); installGlobalVariable($1, declaredType, $3); free($1); }
+                   { if ($3 <= 0) semanticError("array size must be positive", NULL); installGlobalVariable($1, declaredType, $3, $3, 0, 1); free($1); }
+                 | ID '[' NUM ']' '[' NUM ']'
+                   { if ($3 <= 0 || $6 <= 0) semanticError("array dimensions must be positive", NULL); installGlobalVariable($1, declaredType, $3 * $6, $3, $6, 2); free($1); }
                  | ID '(' paramlist ')'
                    { installGlobal($1, declaredType, (Paramstruct *)$3); free($1); }
-                 | '*' ID
-                   { installGlobalVariable($2, pointerType(declaredType), 1); free($2); }
 ;
 paramlist : /* empty */ { $$ = NULL; }
           | param { $$ = $1; }
@@ -72,6 +77,9 @@ param : type ID { $$ = makeParam($2, $1); free($2); }
 ;
 type : INT { currentType = TYPE_INT; $$ = TYPE_INT; }
      | STR { currentType = TYPE_STR; $$ = TYPE_STR; }
+;
+global_type : INT { currentType = declaredType = TYPE_INT; $$ = TYPE_INT; }
+            | STR { currentType = declaredType = TYPE_STR; $$ = TYPE_STR; }
 ;
 return_type : type { declaredType = $1; $$ = $1; }
       | type '*'
@@ -118,8 +126,8 @@ local_declaration : type local_variable_list ';'
 ;
 local_variable_list : local_variable_list ',' local_variable | local_variable
 ;
-local_variable : ID { installLocal($1, currentType); free($1); }
-               | '*' ID { installLocal($2, pointerType(currentType)); free($2); }
+local_variable : ID { installLocal($1, currentType, 1, 0, 0, 0); free($1); }
+               | '*' ID { installLocal($2, pointerType(currentType), 1, 0, 0, 0); free($2); }
 ;
 stmtlist : /* empty */ { $$ = NULL; }
    | stmtseq { $$ = $1; }
@@ -156,6 +164,18 @@ stmt : ID '=' expr ';'
            $$ = makeNode(NODE_ASSIGN, TYPE_NONE, 0, NULL, array, NULL, $6);
            free($1);
        }
+         | ID '[' expr ']' '[' expr ']' '=' expr ';'
+           {
+             Gsymbol *entry = lookupGlobal($1); Lsymbol *local = lookupLocal($1);
+             tnode *array;
+             if ((!entry && !local) || (entry ? entry->dimension != 2 : local->dimension != 2)) semanticError("invalid 2D array", $1);
+             if ($3->type != TYPE_INT || $6->type != TYPE_INT) semanticError("array indices must be integer", $1);
+             if ((entry ? entry->type : local->type) != $9->type) semanticError("array assignment type mismatch", $1);
+             array = makeNode(NODE_ARRAY, entry ? entry->type : local->type, 0, $1, $3, $6, NULL);
+             array->gentry = entry; array->lentry = local;
+             $$ = makeNode(NODE_ASSIGN, TYPE_NONE, 0, NULL, array, NULL, $9);
+             free($1);
+           }
      | READ '(' ID ')' ';'
        { tnode *id = makeIdentifier($3); if (id->gentry && id->gentry->flabel >= 0) semanticError("cannot read into function", $3); $$ = makeNode(NODE_READ, TYPE_NONE, 0, NULL, id, NULL, NULL); free($3); }
      | READ '(' ID '[' expr ']' ')' ';'
@@ -169,6 +189,17 @@ stmt : ID '=' expr ';'
            $$ = makeNode(NODE_READ, TYPE_NONE, 0, NULL, array, NULL, NULL);
            free($3);
        }
+         | READ '(' ID '[' expr ']' '[' expr ']' ')' ';'
+           {
+             Gsymbol *entry = lookupGlobal($3);
+             tnode *array;
+             if (!entry || entry->dimension != 2) semanticError("invalid 2D array", $3);
+             if ($5->type != TYPE_INT || $8->type != TYPE_INT) semanticError("array indices must be integer", $3);
+             array = makeNode(NODE_ARRAY, entry->type, 0, $3, $5, $8, NULL);
+             array->gentry = entry;
+             $$ = makeNode(NODE_READ, TYPE_NONE, 0, NULL, array, NULL, NULL);
+             free($3);
+           }
      | READ '(' '*' expr ')' ';'
        { tnode *deref = makeNode(NODE_DEREF, dereferencedType($4->type), 0, NULL, $4, NULL, NULL); $$ = makeNode(NODE_READ, TYPE_NONE, 0, NULL, deref, NULL, NULL); }
      | '*' expr '=' expr ';'
@@ -201,7 +232,9 @@ expr : expr '+' expr { if ($1->type != TYPE_INT || $3->type != TYPE_INT) semanti
      | STRCONST { $$ = makeNode(NODE_STRCONST, TYPE_STR, 0, $1, NULL, NULL, NULL); free($1); }
      | ID '(' arglist ')' { Gsymbol *f = lookupGlobal($1); if (!f || f->flabel < 0) semanticError("undeclared function", $1); $$ = makeFunctionCall(f, $3); free($1); }
      | ID '[' expr ']'
-       { Gsymbol *entry = lookupGlobal($1); if (!entry || entry->dimension != 1) semanticError("invalid array", $1); if ($3->type != TYPE_INT) semanticError("array index must be integer", $1); $$ = makeNode(NODE_ARRAY, entry->type, 0, $1, $3, NULL, NULL); $$->gentry = entry; free($1); }
+       { Gsymbol *entry = lookupGlobal($1); Lsymbol *local = lookupLocal($1); if ((!entry && !local) || (entry ? entry->dimension != 1 : local->dimension != 1)) semanticError("invalid array", $1); if ($3->type != TYPE_INT) semanticError("array index must be integer", $1); $$ = makeNode(NODE_ARRAY, entry ? entry->type : local->type, 0, $1, $3, NULL, NULL); $$->gentry = entry; $$->lentry = local; free($1); }
+     | ID '[' expr ']' '[' expr ']'
+       { Gsymbol *entry = lookupGlobal($1); Lsymbol *local = lookupLocal($1); if ((!entry && !local) || (entry ? entry->dimension != 2 : local->dimension != 2)) semanticError("invalid 2D array", $1); if ($3->type != TYPE_INT || $6->type != TYPE_INT) semanticError("array indices must be integer", $1); $$ = makeNode(NODE_ARRAY, entry ? entry->type : local->type, 0, $1, $3, $6, NULL); $$->gentry = entry; $$->lentry = local; free($1); }
      | '&' ID
        { Gsymbol *global = lookupGlobal($2); Lsymbol *local = lookupLocal($2); if (!global && !local) semanticError("undeclared identifier", $2); $$ = makeNode(NODE_ADDRESS, pointerType(local ? local->type : global->type), 0, $2, NULL, NULL, NULL); $$->gentry = global; $$->lentry = local; free($2); }
      | '*' expr %prec UDERF

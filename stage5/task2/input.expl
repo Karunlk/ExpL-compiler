@@ -1,5 +1,5 @@
 decl
-  int n;
+  int n, arr[2][2];
   str s;
   int fact(int n);
 enddecl

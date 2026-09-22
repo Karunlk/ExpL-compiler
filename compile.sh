@@ -1,29 +1,39 @@
-#! /bin/bash
+#!/bin/bash
+set -euo pipefail
 
 CC="gcc"
-
 STAGE="stage5"
-TASK="exe3"
-ADDRESS="$HOME/Documents/compiler-lab/$STAGE/$TASK/"
+TASK="${1:-exe1}"
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+ADDRESS="$ROOT_DIR/$STAGE/$TASK"
 LEXFILE="$TASK.l"
 YACCFILE="$TASK.y"
 INPUTFILE="input.expl"
 
-cd $ADDRESS
-lex $LEXFILE
-yacc -d $YACCFILE
-$CC lex.yy.c y.tab.c -lfl
-./a.out $INPUTFILE
-lex label_translate.l
-$CC lex.yy.c -o label_translate
-./label_translate output.o
+if [[ ! -f "$ADDRESS/$LEXFILE" || ! -f "$ADDRESS/$YACCFILE" || ! -f "$ADDRESS/$INPUTFILE" ]]; then
+    echo "Unknown or incomplete target: $STAGE/$TASK" >&2
+    exit 1
+fi
 
-XSMADDRESS="$HOME/Documents/compiler-lab/xsm_expl"
-RUNADDRESS="/$STAGE/$TASK"
+cd "$ADDRESS"
+lex "$LEXFILE"
+yacc -d "$YACCFILE"
+"$CC" lex.yy.c y.tab.c -lfl -o a.out
+./a.out "$INPUTFILE"
 
-cd $XSMADDRESS
-./xsm -l library.lib -e ../$RUNADDRESS/output.xsm
+if [[ -f output.o ]]; then
+    lex label_translate.l
+    "$CC" lex.yy.c -o label_translate
+    ./label_translate output.o
 
+    cd "$ROOT_DIR/xsm_expl"
+    xsm_output="$(./xsm -l library.lib -e "../$STAGE/$TASK/output.xsm" 2>&1)"
+    printf '%s\n' "$xsm_output"
+    if [[ "$xsm_output" == *"Exception"* ]]; then
+        echo "XSM reported a runtime exception for $STAGE/$TASK" >&2
+        exit 1
+    fi
+fi
 
-cd $ADDRESS
-rm -rf lex.yy.c y.tab.c y.tab.h a.out output.o output.xsm label_translate
+cd "$ADDRESS"
+rm -f lex.yy.c y.tab.c y.tab.h a.out output.o output.xsm label_translate

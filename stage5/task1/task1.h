@@ -26,6 +26,7 @@ typedef struct Gsymbol {
     int binding;
     Paramstruct *paramlist;
     int flabel;
+    int defined;
     struct Gsymbol *next;
 } Gsymbol;
 
@@ -35,6 +36,7 @@ Gsymbol *lookup(const char *name);
 void installVariable(const char *name, int type, int size, int rows,
                      int columns, int dimension);
 void installFunction(const char *name, int type, Paramstruct *paramlist);
+void checkFunctionDefinition(const char *name, int type, Paramstruct *paramlist);
 Paramstruct *makeParam(const char *name, int type);
 Paramstruct *appendParam(Paramstruct *head, Paramstruct *param);
 void printGsymbol(void);

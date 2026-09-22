@@ -21,6 +21,10 @@ int yywrap(void) { return 1; }
 "while"     { return WHILE; }
 "do"        { return DO; }
 "endwhile"  { return ENDWHILE; }
+"repeat"    { return REPEAT; }
+"until"     { return UNTIL; }
+"break"     { return BREAK; }
+"continue"  { return CONTINUE; }
 "AND"       { return AND; }
 "int"       { return INT; }
 "str"       { return STR; }

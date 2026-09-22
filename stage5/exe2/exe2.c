@@ -75,7 +75,8 @@ void freeParams(Paramstruct *params)
     }
 }
 
-void installGlobalVariable(const char *name, int type, int size)
+void installGlobalVariable(const char *name, int type, int size, int rows,
+                           int columns, int dimension)
 {
     Gsymbol *entry;
     rejectGlobalDuplicate(name);
@@ -84,7 +85,9 @@ void installGlobalVariable(const char *name, int type, int size)
     entry->name = strdup(name);
     entry->type = type;
     entry->size = size;
-    entry->dimension = size > 1 ? 1 : 0;
+    entry->rows = rows;
+    entry->columns = columns;
+    entry->dimension = dimension;
     entry->binding = nextBinding;
     nextBinding += size;
     entry->flabel = -1;
@@ -433,6 +436,11 @@ static int arrayAddress(tnode *node, FILE *out)
 {
     int index = generateNode(node->left, out);
     int base = codeRegister();
+    if (node->middle) {
+        int column = generateNode(node->middle, out);
+        fprintf(out, "MUL R%d, %d\nADD R%d, R%d\n", index, node->gentry->columns, index, column);
+        releaseRegister(column);
+    }
     fprintf(out, "MOV R%d, %d\nADD R%d, R%d\n", base,
             node->gentry->binding, base, index);
     releaseRegister(index);

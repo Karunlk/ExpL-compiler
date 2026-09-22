@@ -66,7 +66,8 @@ void freeParams(Paramstruct *params)
     }
 }
 
-void installGlobalVariable(const char *name, int type, int size)
+void installGlobalVariable(const char *name, int type, int size, int rows,
+                           int columns, int dimension)
 {
     Gsymbol *entry;
     rejectGlobalDuplicate(name);
@@ -75,6 +76,9 @@ void installGlobalVariable(const char *name, int type, int size)
     entry->name = strdup(name);
     entry->type = type;
     entry->size = size;
+    entry->rows = rows;
+    entry->columns = columns;
+    entry->dimension = dimension;
     entry->binding = nextBinding;
     nextBinding += size;
     entry->flabel = -1;

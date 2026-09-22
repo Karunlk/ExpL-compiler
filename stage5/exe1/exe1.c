@@ -72,7 +72,8 @@ void freeParams(Paramstruct *params)
     }
 }
 
-void installGlobalVariable(const char *name, int type, int size)
+void installGlobalVariable(const char *name, int type, int size, int rows,
+                           int columns, int dimension)
 {
     Gsymbol *entry;
     rejectGlobalDuplicate(name);
@@ -81,7 +82,9 @@ void installGlobalVariable(const char *name, int type, int size)
     entry->name = strdup(name);
     entry->type = type;
     entry->size = size;
-    entry->dimension = size > 1 ? 1 : 0;
+    entry->rows = rows;
+    entry->columns = columns;
+    entry->dimension = dimension;
     entry->binding = nextBinding;
     nextBinding += size;
     entry->flabel = -1;
@@ -157,11 +160,12 @@ void beginFunctionScope(Paramstruct *params)
     Lhead = NULL;
     nextLocalBinding = 1;
     for (param = params; param; param = param->next, binding--)
-        installLocal(param->name, param->type), Lhead->binding = binding;
+        installLocal(param->name, param->type, 1, 0, 0, 0), Lhead->binding = binding;
     nextLocalBinding = 1;
 }
 
-void installLocal(const char *name, int type)
+void installLocal(const char *name, int type, int size, int rows,
+                  int columns, int dimension)
 {
     Lsymbol *entry;
     if (lookupLocal(name)) fail("duplicate local declaration:", name);
@@ -169,7 +173,12 @@ void installLocal(const char *name, int type)
     if (!entry) { perror("calloc"); exit(EXIT_FAILURE); }
     entry->name = strdup(name);
     entry->type = type;
+    entry->size = size;
+    entry->rows = rows;
+    entry->columns = columns;
+    entry->dimension = dimension;
     entry->binding = nextLocalBinding++;
+    nextLocalBinding += size - 1;
     entry->next = Lhead;
     Lhead = entry;
 }
@@ -362,8 +371,18 @@ static int arrayAddress(tnode *node, FILE *out)
 {
     int index = generateNode(node->left, out);
     int base = codeRegister();
-    fprintf(out, "MOV R%d, %d\nADD R%d, R%d\n", base,
-            node->gentry->binding, base, index);
+    if (node->middle) {
+        int column = generateNode(node->middle, out);
+        int columns = node->lentry ? node->lentry->columns : node->gentry->columns;
+        fprintf(out, "MUL R%d, %d\nADD R%d, R%d\n", index, columns, index, column);
+        releaseRegister(column);
+    }
+    if (node->lentry)
+        fprintf(out, "MOV R%d, BP\nADD R%d, %d\nADD R%d, R%d\n", base,
+                base, node->lentry->binding, base, index);
+    else
+        fprintf(out, "MOV R%d, %d\nADD R%d, R%d\n", base,
+                node->gentry->binding, base, index);
     releaseRegister(index);
     return base;
 }
@@ -467,7 +486,7 @@ static int generateNode(tnode *node, FILE *out)
             fprintf(out, "MOV R%d, BP\nSUB R%d, 2\nMOV [R%d], R%d\n", reg, reg, reg, left);
             releaseRegister(left);
             releaseRegister(reg);
-            if (codeFunction->locals) { int count = 0; Lsymbol *local; for (local = codeFunction->locals; local; local = local->next) if (local->binding > 0) count++; while (count--) fprintf(out, "POP R0\n"); }
+            if (codeFunction->locals) { int count = 0; Lsymbol *local; for (local = codeFunction->locals; local; local = local->next) if (local->binding > 0) count += local->size; while (count--) fprintf(out, "POP R0\n"); }
             fprintf(out, "POP BP\nRET\n"); return -1;
         case NODE_FUNCALL:
             { Gsymbol *function = node->gentry; tnode *arg; int saved[20], savedCount = 0, i;
@@ -501,14 +520,14 @@ void generateProgram(const char *filename)
     for (function = functions; function; function = function->next) {
         if (strcmp(function->name, "main") == 0) {
             codeFunction = function; codeIsMain = 1; fprintf(out, "MOV BP, SP\n");
-            { int locals = 0; Lsymbol *local; for (local = function->locals; local; local = local->next) if (local->binding > 0) locals++; while (locals--) fprintf(out, "PUSH R0\n"); }
+            { int locals = 0; Lsymbol *local; for (local = function->locals; local; local = local->next) if (local->binding > 0) locals += local->size; while (locals--) fprintf(out, "PUSH R0\n"); }
             generateNode(function->tree, out); fprintf(out, "INT 10\n");
         }
     }
     for (function = functions; function; function = function->next) if (strcmp(function->name, "main") != 0) {
         Gsymbol *entry = lookupGlobal(function->name); Lsymbol *local; int locals = 0;
         codeFunction = function; codeIsMain = 0; fprintf(out, "F%d:\nPUSH BP\nMOV BP, SP\n", entry->flabel);
-        for (local = function->locals; local; local = local->next) if (local->binding > 0) locals++;
+        for (local = function->locals; local; local = local->next) if (local->binding > 0) locals += local->size;
         while (locals--) fprintf(out, "PUSH R0\n");
         generateNode(function->tree, out);
     }

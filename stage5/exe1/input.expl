@@ -1,5 +1,6 @@
 decl
   int a, b;
+  int arr[2][3];
   int swap(int *p, int *q);
 enddecl
 

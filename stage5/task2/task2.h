@@ -43,6 +43,9 @@ typedef struct Gsymbol {
     char *name;
     int type;
     int size;
+    int rows;
+    int columns;
+    int dimension;
     int binding;
     Paramstruct *paramlist;
     int flabel;
@@ -81,7 +84,8 @@ extern Lsymbol *Lhead;
 
 Gsymbol *lookupGlobal(const char *name);
 void installGlobal(const char *name, int type, Paramstruct *params);
-void installGlobalVariable(const char *name, int type, int size);
+void installGlobalVariable(const char *name, int type, int size, int rows,
+                           int columns, int dimension);
 Paramstruct *makeParam(const char *name, int type);
 Paramstruct *appendParam(Paramstruct *head, Paramstruct *param);
 void freeParams(Paramstruct *params);

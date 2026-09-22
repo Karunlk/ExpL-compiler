@@ -40,6 +40,7 @@ function_list
 function_definition
     : type ID '(' paramlist ')' block
       {
+          checkFunctionDefinition($2, $1, $4);
           free($2);
       }
     ;

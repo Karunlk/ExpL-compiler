@@ -36,8 +36,11 @@ declaration : type ID '(' paramlist ')' ';' { installGlobal($2, $1, (Paramstruct
 ;
 variable_list : variable_list ',' variable | variable
 ;
-variable : ID { installGlobalVariable($1, currentType, 1); free($1); }
-          | ID '[' NUM ']' { if ($3 <= 0) semanticError("array size must be positive", NULL); installGlobalVariable($1, currentType, $3); free($1); }
+variable : ID { installGlobalVariable($1, currentType, 1, 0, 0, 0); free($1); }
+          | ID '[' NUM ']'
+            { if ($3 <= 0) semanticError("array size must be positive", NULL); installGlobalVariable($1, currentType, $3, $3, 0, 1); free($1); }
+          | ID '[' NUM ']' '[' NUM ']'
+            { if ($3 <= 0 || $6 <= 0) semanticError("array dimensions must be positive", NULL); installGlobalVariable($1, currentType, $3 * $6, $3, $6, 2); free($1); }
 ;
 paramlist : /* empty */ { $$ = NULL; }
           | param { $$ = $1; }

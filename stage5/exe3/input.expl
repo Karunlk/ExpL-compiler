@@ -1,6 +1,7 @@
 decl
   tuple pair (int value) a;
   int readPair(pair p);
+  int arr[2][3];
 enddecl
 
 int readPair(pair p)

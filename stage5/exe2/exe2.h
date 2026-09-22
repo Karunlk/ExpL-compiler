@@ -67,6 +67,8 @@ typedef struct Gsymbol {
     char *name;
     int type;
     int size;
+    int rows;
+    int columns;
     int binding;
     int dimension;
     TupleDef *tuple;
@@ -110,7 +112,8 @@ extern TupleDef *Tuples;
 
 Gsymbol *lookupGlobal(const char *name);
 void installGlobal(const char *name, int type, Paramstruct *params);
-void installGlobalVariable(const char *name, int type, int size);
+void installGlobalVariable(const char *name, int type, int size, int rows,
+                           int columns, int dimension);
 void installTupleVariable(const char *name, TupleDef *tuple);
 void installTuplePointerVariable(const char *name, TupleDef *tuple);
 TupleDef *installTuple(const char *name, TupleField *fields);
