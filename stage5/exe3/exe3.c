@@ -479,7 +479,7 @@ static int fieldAddress(tnode *node, FILE *out)
     if (node->lentry) {
         int reg = codeRegister();
         fprintf(out, "MOV R%d, BP\nADD R%d, %d\n", reg, reg, node->lentry->binding);
-        if (node->lentry->type == TYPE_TUPLE_PTR) {
+        if (node->lentry->binding < 0) {
             fprintf(out, "MOV R%d, [R%d]\n", reg, reg);
             fprintf(out, "ADD R%d, %d\n", reg, node->val);
         } else {
@@ -498,9 +498,11 @@ static int fieldAddress(tnode *node, FILE *out)
 static int tupleAddress(tnode *node, FILE *out)
 {
     int reg = codeRegister();
-    if (node->lentry)
+    if (node->lentry) {
         fprintf(out, "MOV R%d, BP\nADD R%d, %d\n", reg, reg, node->lentry->binding);
-    else
+        if (node->lentry->binding < 0)
+            fprintf(out, "MOV R%d, [R%d]\n", reg, reg);
+    } else
         fprintf(out, "MOV R%d, %d\n", reg, node->gentry->binding);
     return reg;
 }
@@ -644,7 +646,11 @@ static int generateNode(tnode *node, FILE *out)
               for (i = 0; i < 20; i++) if (registers[i]) { fprintf(out, "PUSH R%d\n", i); saved[savedCount++] = i; }
               int count = 0; for (arg = node->left; arg; arg = arg->next) count++;
               tnode **args = malloc(sizeof(*args) * count); arg = node->left; for (i = 0; i < count; i++, arg = arg->next) args[i] = arg;
-              for (i = count - 1; i >= 0; i--) { left = generateNode(args[i], out); fprintf(out, "PUSH R%d\n", left); releaseRegister(left); }
+              for (i = count - 1; i >= 0; i--) {
+                  left = (args[i]->type == TYPE_TUPLE || args[i]->type == TYPE_TUPLE_PTR)
+                      ? tupleAddress(args[i], out) : generateNode(args[i], out);
+                  fprintf(out, "PUSH R%d\n", left); releaseRegister(left);
+              }
               fprintf(out, "PUSH R0\nCALL F%d\n", function->flabel);
               reg = codeRegister();
               fprintf(out, "POP R%d\n", reg);

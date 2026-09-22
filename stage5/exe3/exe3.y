@@ -41,7 +41,7 @@ static int dereferencedType(int type)
 %type <tuple> tuple_type
 %type <param> paramlist param
 %type <param> fieldlist field tuplevars
-%type <node> expr arglist stmt stmtlist stmtseq
+%type <node> expr arglist stmt stmtlist stmtseq function_body
 %left LT GT LE GE NE EQ
 %left AND
 %left '+' '-'
@@ -56,8 +56,6 @@ declarations : DECL declaration_list ENDDECL | DECL ENDDECL | /* empty */
 declaration_list : declaration_list declaration | declaration
 ;
 declaration : type { declaredType = $1; } declaration_items ';'
-            | type '*' ID '(' paramlist ')' ';'
-              { installGlobal($3, pointerType($1), (Paramstruct *)$5); free($3); }
             | tuple_type ID '(' paramlist ')' ';'
               { installGlobalTupleFunction($2, TYPE_TUPLE, $1, (Paramstruct *)$4); free($2); }
             | tuple_type '*' ID '(' paramlist ')' ';'
@@ -75,6 +73,8 @@ declaration_item : ID
                    { installGlobal($1, declaredType, (Paramstruct *)$3); free($1); }
                  | '*' ID
                    { installGlobalVariable($2, pointerType(declaredType), 1); free($2); }
+                 | '*' ID '(' paramlist ')'
+                   { installGlobal($2, pointerType(declaredType), (Paramstruct *)$4); free($2); }
 ;
 paramlist : /* empty */ { $$ = NULL; }
           | param { $$ = $1; }
@@ -118,11 +118,11 @@ function_definition
           currentReturnType = $1; currentHasReturn = 0;
           beginFunctionScope((Paramstruct *)$4); freeParams((Paramstruct *)$4);
       }
-      local_declarations BEGIN_TOKEN stmtlist END_TOKEN '}'
+        function_body
       {
           FunctionAst *function = calloc(1, sizeof(*function));
           if (!currentHasReturn) semanticError("function has no return statement", $2);
-          function->name = strdup($2); function->tree = $10; function->locals = Lhead;
+          function->name = strdup($2); function->tree = $8; function->locals = Lhead;
           function->next = functions; functions = function; Lhead = NULL; free($2);
       }
   | tuple_type ID '(' paramlist ')' '{'
@@ -135,11 +135,11 @@ function_definition
           currentReturnType = TYPE_TUPLE; currentReturnTuple = $1; currentHasReturn = 0;
           beginFunctionScope((Paramstruct *)$4); freeParams((Paramstruct *)$4);
       }
-          local_declarations BEGIN_TOKEN stmtlist END_TOKEN '}'
+            function_body
           {
             FunctionAst *function = calloc(1, sizeof(*function));
             if (!currentHasReturn) semanticError("function has no return statement", $2);
-            function->name = strdup($2); function->tree = $10; function->locals = Lhead;
+              function->name = strdup($2); function->tree = $8; function->locals = Lhead;
             function->next = functions; functions = function; Lhead = NULL; free($2);
           }
   | tuple_type '*' ID '(' paramlist ')' '{'
@@ -152,11 +152,11 @@ function_definition
           currentReturnType = TYPE_TUPLE_PTR; currentReturnTuple = $1; currentHasReturn = 0;
           beginFunctionScope((Paramstruct *)$5); freeParams((Paramstruct *)$5);
       }
-      local_declarations BEGIN_TOKEN stmtlist END_TOKEN '}'
+        function_body
       {
           FunctionAst *function = calloc(1, sizeof(*function));
           if (!currentHasReturn) semanticError("function has no return statement", $3);
-          function->name = strdup($3); function->tree = $11; function->locals = Lhead;
+          function->name = strdup($3); function->tree = $9; function->locals = Lhead;
           function->next = functions; functions = function; Lhead = NULL; free($3);
       }
   | type '*' ID '(' paramlist ')' '{'
@@ -173,18 +173,20 @@ function_definition
             beginFunctionScope((Paramstruct *)$5);
             freeParams((Paramstruct *)$5);
           }
-          local_declarations BEGIN_TOKEN stmtlist END_TOKEN '}'
+          function_body
           {
             FunctionAst *function = calloc(1, sizeof(*function));
             if (!currentHasReturn) semanticError("function has no return statement", $3);
             function->name = strdup($3);
-            function->tree = $11;
+            function->tree = $9;
             function->locals = Lhead;
             function->next = functions;
             functions = function;
             Lhead = NULL;
             free($3);
           }
+;
+function_body : local_declarations BEGIN_TOKEN stmtlist END_TOKEN '}' { $$ = $3; }
 ;
 local_declarations : DECL local_declaration_list ENDDECL | DECL ENDDECL | /* empty */
 ;
