@@ -1,0 +1,21 @@
+decl
+  tuple pair (int value) a, b;
+  pair make();
+enddecl
+
+pair make()
+{
+  begin
+    return a;
+  end
+}
+
+int main()
+{
+  begin
+    a.value = 12;
+    b = make();
+    write(b.value);
+    return 0;
+  end
+}

@@ -1,0 +1,21 @@
+decl
+  tuple pair (int value) p;
+  int set(pair *q);
+enddecl
+
+int set(pair *q)
+{
+  begin
+    q.value = 9;
+    return 0;
+  end
+}
+
+int main()
+{
+  begin
+    set(&p);
+    write(p.value);
+    return 0;
+  end
+}
