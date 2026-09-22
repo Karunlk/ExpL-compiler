@@ -1,0 +1,29 @@
+decl
+  int a, b;
+  int swap(int *p, int *q);
+enddecl
+
+int swap(int *p, int *q)
+{
+  decl
+    int temp;
+  enddecl
+  begin
+    temp = *p;
+    *p = *q;
+    *q = temp;
+    return 0;
+  end
+}
+
+int main()
+{
+  begin
+    a = 3;
+    b = 7;
+    swap(&a, &b);
+    write(a);
+    write(b);
+    return 0;
+  end
+}

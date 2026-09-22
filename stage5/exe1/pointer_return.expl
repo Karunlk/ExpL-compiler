@@ -1,0 +1,21 @@
+decl
+  int a;
+  int *identity(int *p);
+enddecl
+
+int *identity(int *p)
+{
+  begin
+    return p;
+  end
+}
+
+int main()
+{
+  begin
+    a = 9;
+    *identity(&a) = 4;
+    write(a);
+    return 0;
+  end
+}
