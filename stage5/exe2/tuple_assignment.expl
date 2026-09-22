@@ -1,0 +1,13 @@
+decl
+  tuple student (str name, int roll_no) a, b;
+enddecl
+
+int main()
+{
+  begin
+    a.roll_no = 12;
+    b = a;
+    write(b.roll_no);
+    return 0;
+  end
+}
