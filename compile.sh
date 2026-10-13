@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CC="gcc"
-STAGE="stage5"
+STAGE="stage6"
 TASK="${1:-exe1}"
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ADDRESS="$ROOT_DIR/$STAGE/$TASK"
@@ -18,16 +18,16 @@ fi
 cd "$ADDRESS"
 lex "$LEXFILE"
 yacc -d "$YACCFILE"
-"$CC" lex.yy.c y.tab.c -lfl -o a.out
+"$CC" lex.yy.c y.tab.c "$TASK.c" -lfl -o a.out
 ./a.out "$INPUTFILE"
 
-if [[ -f output.o ]]; then
+if [[ -f a.xsm ]]; then
     lex label_translate.l
     "$CC" lex.yy.c -o label_translate
-    ./label_translate output.o
+    ./label_translate a.xsm
 
     cd "$ROOT_DIR/xsm_expl"
-    xsm_output="$(./xsm -l library.lib -e "../$STAGE/$TASK/output.xsm" 2>&1)"
+    xsm_output="$(./xsm -l "./library.lib" -e "../$STAGE/$TASK/output.xsm" 2>&1)"
     printf '%s\n' "$xsm_output"
     if [[ "$xsm_output" == *"Exception"* ]]; then
         echo "XSM reported a runtime exception for $STAGE/$TASK" >&2
@@ -36,4 +36,4 @@ if [[ -f output.o ]]; then
 fi
 
 cd "$ADDRESS"
-rm -f lex.yy.c y.tab.c y.tab.h a.out output.o output.xsm label_translate
+rm -f lex.yy.c y.tab.c y.tab.h a.out a.xsm output.o output.xsm label_translate

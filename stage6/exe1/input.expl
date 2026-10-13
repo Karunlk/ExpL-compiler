@@ -1,0 +1,41 @@
+type
+  Person
+  {
+    int id;
+    int marks;
+  }
+endtype
+
+decl
+  Person people[3];
+  int status;
+enddecl
+
+int main()
+{
+  begin
+    status = initialize();
+
+    people[0] = alloc();
+    people[1] = alloc();
+    people[2] = alloc();
+
+    people[0].id = 101;
+    people[0].marks = 88;
+
+    people[1].id = 102;
+    people[1].marks = 91;
+
+    people[2].id = 103;
+    people[2].marks = 95;
+
+    write(people[0].id);
+    write(people[0].marks);
+    write(people[1].id);
+    write(people[1].marks);
+    write(people[2].id);
+    write(people[2].marks);
+
+    return 0;
+  end
+}
