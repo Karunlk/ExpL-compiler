@@ -18,7 +18,7 @@ fi
 cd "$ADDRESS"
 lex "$LEXFILE"
 yacc -d "$YACCFILE"
-"$CC" lex.yy.c y.tab.c "$TASK.c" -lfl -o a.out
+"$CC" lex.yy.c y.tab.c  -lfl -o a.out
 ./a.out "$INPUTFILE"
 
 if [[ -f a.xsm ]]; then

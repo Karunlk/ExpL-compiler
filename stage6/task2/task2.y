@@ -3,6 +3,7 @@
     #include <stdlib.h>
     #include <string.h>
     #include "task2.h"
+    #include "task2.c"
 
     int yylex(void);
     void yyerror(const char* s);
