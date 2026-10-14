@@ -21,10 +21,10 @@ yacc -d "$YACCFILE"
 "$CC" lex.yy.c y.tab.c  -lfl -o a.out
 ./a.out "$INPUTFILE"
 
-if [[ -f a.xsm ]]; then
+if [[ -f output.o ]]; then
     lex label_translate.l
     "$CC" lex.yy.c -o label_translate
-    ./label_translate a.xsm
+    ./label_translate output.o
 
     cd "$ROOT_DIR/xsm_expl"
     xsm_output="$(./xsm -l "./library.lib" -e "../$STAGE/$TASK/output.xsm" 2>&1)"

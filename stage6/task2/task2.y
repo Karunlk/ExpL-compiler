@@ -377,7 +377,7 @@ int main(int argc, char* argv[]) {
     }
     yyin = fp;
 
-    out = fopen("a.xsm", "w");
+    out = fopen("output.o", "w");
     if(!out) {
         printf("File couldn't be opened exiting\n");
         exit(1);
