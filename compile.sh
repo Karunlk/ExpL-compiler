@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CC="gcc"
-STAGE="stage6"
+STAGE="stage8"
 TASK="${1:-exe1}"
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ADDRESS="$ROOT_DIR/$STAGE/$TASK"
@@ -27,9 +27,10 @@ if [[ -f output.o ]]; then
     ./label_translate output.o
 
     cd "$ROOT_DIR/xsm_expl"
-    xsm_output="$(./xsm -l "./library.lib" -e "../$STAGE/$TASK/output.xsm" 2>&1)"
-    printf '%s\n' "$xsm_output"
-    if [[ "$xsm_output" == *"Exception"* ]]; then
+    xsm_log="$(mktemp)"
+    trap 'rm -f "$xsm_log"' EXIT
+    ./xsm -l "./library.lib" -e "../$STAGE/$TASK/output.xsm" 2>&1 | tee "$xsm_log"
+    if grep -q "Exception" "$xsm_log"; then
         echo "XSM reported a runtime exception for $STAGE/$TASK" >&2
         exit 1
     fi

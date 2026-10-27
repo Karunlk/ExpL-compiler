@@ -9,7 +9,7 @@
     void yyerror(const char* s);
     extern FILE *yyin;
 
-    FILE* out = NULL;          // target file (a.xsm)
+    FILE* out = NULL;          // target file (output.o)
     int decl_type = -1;        // type of the declaration currently being parsed
     char func_label[20];       // label of the function currently being parsed
     int cur_type = -1;         // user-defined type currently being defined
@@ -392,6 +392,6 @@ int main(int argc, char* argv[]) {
     }
 
     fclose(out);
-    printf("Code generated in a.xsm\n");
+    printf("Code generated in output.o\n");
     return 0;
 }
