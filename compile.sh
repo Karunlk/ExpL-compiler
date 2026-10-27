@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CC="gcc"
-STAGE="stage8"
+STAGE="stage7"
 TASK="${1:-exe1}"
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ADDRESS="$ROOT_DIR/$STAGE/$TASK"

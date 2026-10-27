@@ -177,7 +177,7 @@
     Paramstruct* plist;
 }
 
-%type <node> FieldRef stmt_list stmt expr AsgStmt OutputStmt InputStmt Ifstmt Whilestmt DoWhilestmt RepeatUntilstmt ReturnStmt VarNode LValue Body ArgList CallExpr
+%type <node> FieldRef VarRef stmt_list stmt expr AsgStmt OutputStmt InputStmt Ifstmt Whilestmt DoWhilestmt RepeatUntilstmt ReturnStmt VarNode LValue Body ArgList CallExpr
 %type <ival> Type
 %type <plist> ParamList NEParamList Param
 %token TYPE ENDTYPE NULLTOK ALLOC FREE INITIALIZE NBEGIN END READ WRITE EQ GT NE LT LE GE IF WHILE ENDIF DO ENDWHILE THEN ELSE REPEAT UNTIL DECL ENDDECL INT STR RETURN MAIN AND OR NOT BREAK CONTINUE CLASS ENDCLASS SELF NEW DELETE
@@ -374,7 +374,7 @@ AsgStmt : LValue '=' expr {
         }
         ;
 
-LValue : VarNode { $$ = $1; }
+LValue : VarRef { $$ = $1; }
        | '*' expr %prec U_STAR { $$ = createNode(0, INTEGER_TYPE, DEREF_NODE, NULL, $2, NULL, NULL); }
        ;
 
@@ -383,7 +383,7 @@ OutputStmt : WRITE '(' expr ')' {
              }
              ;
 
-InputStmt : READ '(' VarNode ')' {
+InputStmt : READ '(' VarRef ')' {
                 $$ = createNode(0, INTEGER_TYPE, READ_NODE, NULL, $3, NULL, NULL);
             }
             ;
@@ -420,11 +420,12 @@ expr : expr '+' expr  { $$ = createNode(0, INTEGER_TYPE, PLUS_NODE, NULL, $1, $3
      | expr OR expr   { $$ = createNode(0, BOOLEAN_TYPE, OR_NODE, NULL, $1, $3, NULL); }
      | NOT expr       { $$ = createNode(0, BOOLEAN_TYPE, NOT_NODE, NULL, $2, NULL, NULL); }
      | '*' expr %prec U_STAR { $$ = createNode(0, INTEGER_TYPE, DEREF_NODE, NULL, $2, NULL, NULL); }
-     | '&' VarNode    { $$ = createNode(0, INTEGER_POINTER_TYPE, ADDRESS_NODE, NULL, $2, NULL, NULL); }
+     | '&' VarRef     { $$ = createNode(0, INTEGER_POINTER_TYPE, ADDRESS_NODE, NULL, $2, NULL, NULL); }
      | '(' expr ')'   { $$ = $2; }
      | NUM            { $$ = createNode($1, INTEGER_TYPE, CONSTANT, NULL, NULL, NULL, NULL); }
      | '-' NUM        { $$ = createNode(-$2, INTEGER_TYPE, CONSTANT, NULL, NULL, NULL, NULL); }
      | VarNode        { $$ = $1; }
+     | FieldRef       { $$ = $1; }
      | NULLTOK        { $$ = createNode(0, NULL_TYPE, CONSTANT, NULL, NULL, NULL, NULL); }
      | ALLOC '(' ')'  { $$ = createNode(0, ALLOC_TYPE, ALLOC_NODE, NULL, NULL, NULL, NULL); }
      | INITIALIZE '(' ')' { $$ = createNode(0, INTEGER_TYPE, INIT_NODE, NULL, NULL, NULL, NULL); }
@@ -436,8 +437,6 @@ expr : expr '+' expr  { $$ = createNode(0, INTEGER_TYPE, PLUS_NODE, NULL, $1, $3
 
 CallExpr : ID '(' ')'         { $$ = makeCallNode($1, NULL); }
          | ID '(' ArgList ')' { $$ = makeCallNode($1, $3); }
-         | VarNode '.' ID '(' ')' { $$ = makeMethodNode($1, $3, NULL); }
-         | VarNode '.' ID '(' ArgList ')' { $$ = makeMethodNode($1, $3, $5); }
          | FieldRef '(' ')' { $$ = makeMethodNode($1->left, $1->varname, NULL); }
          | FieldRef '(' ArgList ')' { $$ = makeMethodNode($1->left, $1->varname, $3); }
          ;
@@ -450,8 +449,11 @@ VarNode : ID                            { $$ = makeVarNode($1, NULL, NULL); }
         | SELF                          { $$ = makeVarNode("self", NULL, NULL); }
         | ID '[' expr ']'               { $$ = makeVarNode($1, $3, NULL); }
         | ID '[' expr ']' '[' expr ']'  { $$ = makeVarNode($1, $3, $6); }
-        | FieldRef                      { $$ = $1; }
         ;
+
+VarRef : VarNode
+       | FieldRef
+       ;
 
 FieldRef : ID '.' ID        { $$ = makeFieldNode(makeVarNode($1, NULL, NULL), $3); }
          | SELF '.' ID      { $$ = makeFieldNode(makeVarNode("self", NULL, NULL), $3); }
