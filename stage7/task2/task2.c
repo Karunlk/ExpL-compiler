@@ -216,7 +216,10 @@ tnode* makeMethodCall(tnode* receiver, char* name, tnode* args) {
     tnode* node;
     if(m == NULL) semanticError("unknown method %s", name);
     g = calloc(1, sizeof(*g));
-    g->name = strdup(name); g->flabel = m->flabel; g->type = m->type;
+    g->name = strdup(name);
+    g->flabel = m->flabel;
+    g->type = m->type;
+    g->paramlist = m->params;
     node = createNode(0, m->type, METHOD_CALL_NODE, name, args, receiver, NULL);
     node->Gentry = g;
     return node;
