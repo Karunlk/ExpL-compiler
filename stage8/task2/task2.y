@@ -197,7 +197,7 @@ GidList : GidList ',' Gid
         | Gid
         ;
 
-Gid : ID                        { installGlobal($1, decl_type, 1, NULL); Lookup($1)->Ctype=isClassType(decl_type)?CByCode(decl_type):NULL; }
+Gid : ID                        { installGlobal($1, decl_type, isClassType(decl_type) ? 2 : 1, NULL); Lookup($1)->Ctype=isClassType(decl_type)?CByCode(decl_type):NULL; }
     | '*' ID                    { installGlobal($2, pointerTo(decl_type), 1, NULL); }
     | ID '[' NUM ']' {
             int* metadata = (int*)malloc(sizeof(int));

@@ -54,6 +54,20 @@ JMP[ \t]+[A-Za-z][A-Za-z0-9]* {
     address += 2;
 }
 
+MOV[ \t]+R[0-9]+,[ \t]*F[0-9]+ {
+    if (pass == 2)
+    {
+        sscanf(yytext, "%s %[^,], %s", instruction, reg, label);
+        fprintf(output_file, "%s %s, %d", instruction, reg, getAddress(label));
+    }
+    address += 2;
+}
+
+CALL[ \t]+R[0-9]+ {
+    if (pass == 2) fprintf(output_file, "%s", yytext);
+    address += 2;
+}
+
 CALL[ \t]+[A-Za-z][A-Za-z0-9]* {
     if (pass == 2)
     {

@@ -15,6 +15,8 @@
 #define ALLOC_TYPE 109           /* type of an alloc() call: assignable to any user-defined type */
 #define USER_TYPE_BASE 200       /* user-defined type i has type code USER_TYPE_BASE + i */
 #define CLASS_TYPE_BASE 300
+#define VFT_BASE 4096
+#define VFT_SLOTS 8
 #define isUserType(t) ((t) >= USER_TYPE_BASE)
 #define isClassType(t) ((t) >= CLASS_TYPE_BASE)
 #define MAX_TYPES 32

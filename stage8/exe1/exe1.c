@@ -69,7 +69,8 @@ static int argCompatible(int lt, int rt) {
 
 static int assignable(int lt, int rt) {
     if(argCompatible(lt, rt) || (isUserType(lt) && rt == ALLOC_TYPE)) return 1;
-    /* OExpL permits a derived class object wherever an ancestor is expected. */
+    /* A derived object can be stored in a variable/field declared as any
+       ancestor class (the OExpL subtype rule). */
     if(isClassType(lt) && isClassType(rt))
         return CIsDescendant(CByCode(rt), CByCode(lt));
     return 0;
@@ -335,6 +336,21 @@ int getLValueAddr(tnode* node, FILE* target_file) {
     return getVarAddressReg(node, target_file);
 }
 
+static int getClassVTableReg(tnode *receiver, FILE *target_file) {
+    if(receiver->Lentry != NULL && receiver->Lentry->name != NULL &&
+       strcmp(receiver->Lentry->name, "self") == 0) {
+        int table = getReg();
+        fprintf(target_file, "MOV R%d, BP\n", table);
+        fprintf(target_file, "SUB R%d, 4\n", table);
+        fprintf(target_file, "MOV R%d, [R%d]\n", table, table);
+        return table;
+    }
+    int slot = getVarAddressReg(receiver, target_file);
+    fprintf(target_file, "ADD R%d, 1\n", slot);
+    fprintf(target_file, "MOV R%d, [R%d]\n", slot, slot);
+    return slot;
+}
+
 /* Push arguments in reverse order: the last argument is pushed first,
    so that argument 1 ends up at [BP-3], argument 2 at [BP-4], ... */
 void pushArgs(tnode* arg, FILE* target_file) {
@@ -354,48 +370,44 @@ int genFunctionCall(tnode* t, FILE* target_file) {
         fprintf(target_file, "PUSH R%d\n", i);
     }
 
-    // 2. Evaluate and retain the receiver.
+    // 2. Evaluate and retain the receiver and its virtual function table.
     int self_reg = -1;
+    int vtable_reg = -1;
     if(t->nodetype == METHOD_CALL_NODE && t->right != NULL) {
         self_reg = codeGen(t->right, target_file);
+        vtable_reg = getClassVTableReg(t->right, target_file);
     }
 
     // 3. Push explicit arguments first.  The implicit self reference must be
     // closest to the return address so it is visible at BP-3.
     pushArgs(t->left, target_file);
     if(self_reg >= 0) {
+        fprintf(target_file, "PUSH R%d\n", vtable_reg);
         fprintf(target_file, "PUSH R%d\n", self_reg);
     }
 
-    // 4. push space for the return value
+    // 4. Push space for the return value.
     int tmp = getReg();
     fprintf(target_file, "PUSH R%d\n", tmp);
     freeReg();
 
-    // 5. Runtime binding for class methods; ordinary functions use a direct call.
+    // 5. Call through the receiver's vtable slot.
     if(t->nodetype == METHOD_CALL_NODE && self_reg >= 0 && isClassType(t->right->type)) {
-        int tag = getReg();
-        int after = getLabel();
-        fprintf(target_file, "MOV R%d, [R%d]\n", self_reg, self_reg);
-        for(Classtable *c = chead; c != NULL; c = c->next) {
-            if(!CIsDescendant(c, CByCode(t->right->type))) continue;
-            ClassMethod *cm = CMethodLookup(c, t->varname);
-            if(cm == NULL) continue;
-            int next = getLabel();
-            fprintf(target_file, "MOV R%d, %d\n", tag, c->code);
-            fprintf(target_file, "EQ R%d, R%d\n", self_reg, tag);
-            fprintf(target_file, "JZ R%d, L%d\n", self_reg, next);
-            fprintf(target_file, "CALL F%d\n", cm->flabel);
-            fprintf(target_file, "JMP L%d\n", after);
-            fprintf(target_file, "L%d:\n", next);
-        }
-        fprintf(target_file, "CALL F%d\n", t->Gentry->flabel);
-        fprintf(target_file, "L%d:\n", after);
-        freeReg();
-        freeReg();
+        ClassMethod *method = CMethodLookup(CByCode(t->right->type), t->varname);
+        int target = getReg();
+        fprintf(target_file, "MOV R%d, %d\n", target, method->index);
+        fprintf(target_file, "ADD R%d, R%d\n", target, vtable_reg);
+        fprintf(target_file, "MOV R%d, [R%d]\n", target, target);
+        fprintf(target_file, "CALL R%d\n", target);
+        freeReg();                 // target
+        freeReg();                 // vtable
+        freeReg();                 // receiver
     } else {
         fprintf(target_file, "CALL F%d\n", t->Gentry->flabel);
-        if(self_reg >= 0) freeReg();
+        if(self_reg >= 0) {
+            freeReg();
+            freeReg();
+        }
     }
 
     // 6. after return: fetch return value into a fresh register
@@ -404,7 +416,7 @@ int genFunctionCall(tnode* t, FILE* target_file) {
 
     // 7. pop the arguments
     int nargs = countParams(t->Gentry->paramlist);
-    if(t->nodetype == METHOD_CALL_NODE) nargs++;
+    if(t->nodetype == METHOD_CALL_NODE) nargs += 2;
     if(nargs > 0) {
         tmp = getReg();
         for(i = 0; i < nargs; i++) {
@@ -495,13 +507,7 @@ int codeGen(tnode *t, FILE *target_file) {
     }
 
     if(t->nodetype == ALLOC_NODE) {
-        int obj = genLibCall("Alloc", -1, 8, target_file);
-        if(isClassType(t->type)) {
-            int tag = getReg();
-            fprintf(target_file, "MOV R%d, %d\n", tag, t->type);
-            fprintf(target_file, "MOV [R%d], R%d\n", obj, tag);
-            freeReg();
-        }
+        int obj = genLibCall("Alloc", -1, 8, target_file);        // size = fixed block size
         return obj;
     }
 
@@ -628,6 +634,22 @@ int codeGen(tnode *t, FILE *target_file) {
         int right_reg = codeGen(t->right, target_file);
         int addr_reg = getLValueAddr(t->left, target_file);
         fprintf(target_file, "MOV [R%d], R%d\n", addr_reg, right_reg);
+        if(isClassType(t->left->type)) {
+            int tmp = getReg();
+            fprintf(target_file, "ADD R%d, 1\n", addr_reg);
+            if(t->right->nodetype == ALLOC_NODE) {
+                Classtable *c = CByCode(t->right->type);
+                fprintf(target_file, "MOV R%d, %d\n", tmp, VFT_BASE + c->class_index * VFT_SLOTS);
+            } else {
+                int src = getLValueAddr(t->right, target_file);
+                fprintf(target_file, "ADD R%d, 1\n", src);
+                fprintf(target_file, "MOV R%d, [R%d]\n", tmp, src);
+                freeReg();
+            }
+            fprintf(target_file, "MOV [R%d], R%d\n", addr_reg, tmp);
+            freeReg();
+            freeReg();
+        }
         freeReg(); // free addr_reg
         freeReg(); // free right_reg
         return -1;
@@ -777,6 +799,7 @@ int codeGen(tnode *t, FILE *target_file) {
    Emitted once the global declarations are processed. */
 void genStartup(FILE* fp) {
     fprintf(fp, "0\n2056\n0\n0\n0\n0\n0\n0\n");
+    CEmitVTables(fp);
     fprintf(fp, "MOV SP, %d\n", get_stack_pointer());
     fprintf(fp, "MOV BP, SP\n");
     fprintf(fp, "PUSH R0\n");          // space for main's return value
@@ -834,6 +857,11 @@ static ClassMethod* copyMethods(ClassMethod* m) {
         *n=*m;
         n->name=strdup(m->name);
         n->next=NULL;
+        /* A copied entry is inherited.  It remains callable through the
+           parent's label, but a declaration in the derived class must be
+           allowed to replace it (virtual override).  `defined` therefore
+           tracks whether this class has declared the method, not whether the
+           inherited implementation exists. */
         n->defined=0;
         if(!head) head=n; else tail->next=n; tail=n;
     }
@@ -850,11 +878,21 @@ Classtable* CInstall(char* name, char* parent) {
 }
 ClassField* CFieldLookup(Classtable* c,char* n) { ClassField* f; for(f=c?c->fields:NULL;f&&strcmp(f->name,n);f=f->next); return f; }
 ClassMethod* CMethodLookup(Classtable* c,char* n) { ClassMethod* m; for(m=c?c->methods:NULL;m&&strcmp(m->name,n);m=m->next); return m; }
-int CAddField(Classtable* c,char* n,int t) { ClassField *f,*q; if(CFieldLookup(c,n)) return 1; if(c->nfields>=7)return 2; f=calloc(1,sizeof(*f)); f->name=strdup(n);f->type=t;f->index=++c->nfields; for(q=c->fields;q&&q->next;q=q->next);if(q)q->next=f;else c->fields=f;return 0; }
+int CAddField(Classtable* c,char* n,int t) { ClassField *f,*q; int width=isClassType(t)?2:1; if(CFieldLookup(c,n)) return 1; if(c->nfields+width>7)return 2; f=calloc(1,sizeof(*f)); f->name=strdup(n);f->type=t;f->index=c->nfields+1;c->nfields+=width; for(q=c->fields;q&&q->next;q=q->next);if(q)q->next=f;else c->fields=f;return 0; }
 int CAddMethod(Classtable* c,char* n,int t,Paramstruct* p) { ClassMethod *m,*q=CMethodLookup(c,n); if(q){ if(q->defined)return 1; q->type=t;q->params=p;q->flabel=flabel_count++;q->defined=1;return 0;} if(c->nmethods>=8)return 2; m=calloc(1,sizeof(*m));m->name=strdup(n);m->type=t;m->params=p;m->index=c->nmethods++;m->flabel=flabel_count++;m->defined=1;for(q=c->methods;q&&q->next;q=q->next);if(q)q->next=m;else c->methods=m;return 0; }
 int CIsDescendant(Classtable* c,Classtable* p){ for(;c;c=c->parent)if(c==p)return 1;return 0; }
 int CCount(void){return ccount;}
-void CEmitVTables(FILE* fp){ Classtable*c;ClassMethod*m;for(c=chead;c;c=c->next)for(m=c->methods;m;m=m->next)fprintf(fp,"MOV [R0], F%d\\n",m->flabel); }
+void CEmitVTables(FILE* fp){
+    Classtable *c;
+    ClassMethod *m;
+    for(c=chead; c; c=c->next) {
+        for(m=c->methods; m; m=m->next) {
+            fprintf(fp, "MOV R0, %d\n", VFT_BASE + c->class_index * VFT_SLOTS + m->index);
+            fprintf(fp, "MOV R1, F%d\n", m->flabel);
+            fprintf(fp, "MOV [R0], R1\n");
+        }
+    }
+}
 
 Gsymbol* Lookup(char* name) {
     Gsymbol* temp = head;
@@ -883,6 +921,7 @@ int Install(char* name, int type, int size, int* metadata) {
         return 1;
     }
 
+    if(head == NULL) bind_start = VFT_BASE + ccount * VFT_SLOTS;
     Gsymbol* newentry = (Gsymbol*) malloc(sizeof(Gsymbol));
     newentry->name = strdup(name);
     newentry->size = size;
@@ -1027,7 +1066,7 @@ int LInstallParams(Paramstruct* params) {
 }
 
 int LInstallMethodParams(Paramstruct* params) {
-    int binding = -4;
+    int binding = -5;
     while(params != NULL) {
         if(LAppend(params->name, params->type, binding)) return 1;
         binding--;
@@ -1041,7 +1080,7 @@ int LInstall(char* name, int type) {
     if(LAppend(name, type, local_count + 1)) {
         return 1;
     }
-    local_count++;
+    local_count += isClassType(type) ? 2 : 1;
     return 0;
 }
 

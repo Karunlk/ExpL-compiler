@@ -22,6 +22,7 @@
     typedef struct ClassInfo {
         char* name;
         int type;
+        int parent_type;
         ClassMethod* methods;
         struct ClassInfo* next;
     } ClassInfo;
@@ -91,6 +92,7 @@
         current_class = calloc(1, sizeof(*current_class));
         current_class->name = strdup(name);
         current_class->type = type;
+        current_class->parent_type = parent != NULL ? TLookup(parent) : -1;
         current_class->next = classes;
         classes = current_class;
         cur_type = type;
@@ -107,11 +109,14 @@
     }
 
     ClassMethod* findClassMethod(int class_type, char* name) {
-        ClassInfo* c = findClassByType(class_type);
+        ClassInfo* c;
         ClassMethod* m;
-        if(c == NULL) return NULL;
-        for(m = c->methods; m != NULL; m = m->next)
-            if(strcmp(m->name, name) == 0) return m;
+        while((c = findClassByType(class_type)) != NULL) {
+            for(m = c->methods; m != NULL; m = m->next)
+                if(strcmp(m->name, name) == 0) return m;
+            class_type = c->parent_type;
+            if(class_type < 0) break;
+        }
         return NULL;
     }
 
@@ -128,9 +133,19 @@
     tnode* makeMethodNode(tnode* receiver, char* name, tnode* args) {
         ClassMethod* m = findClassMethod(receiver->type, name);
         Gsymbol* g;
+        Paramstruct* p;
+        tnode* a;
         if(m == NULL) declError("unknown method %s", name);
+        for(p = m->params, a = args; p != NULL && a != NULL; p = p->next, a = a->right) {
+            if(!argCompatible(p->type, a->left->type))
+                declError("type mismatch in argument to %s", name);
+        }
+        if(p != NULL || a != NULL) declError("wrong number of arguments in call to %s", name);
         g = calloc(1, sizeof(*g));
-        g->name = strdup(name); g->flabel = m->flabel; g->type = m->return_type;
+        g->name = strdup(name);
+        g->flabel = m->flabel;
+        g->type = m->return_type;
+        g->paramlist = m->params;
         tnode* n = createNode(0, m->return_type, FUNC_CALL_NODE, name, args, receiver, NULL);
         n->Gentry = g;
         return n;
@@ -182,7 +197,7 @@
     Paramstruct* plist;
 }
 
-%type <node> FieldRef stmt_list stmt expr AsgStmt OutputStmt InputStmt Ifstmt Whilestmt DoWhilestmt RepeatUntilstmt ReturnStmt VarNode LValue Body ArgList CallExpr
+%type <node> FieldRef VarRef stmt_list stmt expr AsgStmt OutputStmt InputStmt Ifstmt Whilestmt DoWhilestmt RepeatUntilstmt ReturnStmt VarNode LValue Body ArgList CallExpr
 %type <ival> Type
 %type <plist> ParamList NEParamList Param
 %token TYPE ENDTYPE NULLTOK ALLOC FREE INITIALIZE NBEGIN END READ WRITE EQ GT NE LT LE GE IF WHILE ENDIF DO ENDWHILE THEN ELSE REPEAT UNTIL DECL ENDDECL INT STR RETURN MAIN AND OR NOT BREAK CONTINUE CLASS ENDCLASS EXTENDS SELF NEW DELETE
@@ -380,7 +395,7 @@ AsgStmt : LValue '=' expr {
         }
         ;
 
-LValue : VarNode { $$ = $1; }
+LValue : VarRef { $$ = $1; }
        | '*' expr %prec U_STAR { $$ = createNode(0, INTEGER_TYPE, DEREF_NODE, NULL, $2, NULL, NULL); }
        ;
 
@@ -389,7 +404,7 @@ OutputStmt : WRITE '(' expr ')' {
              }
              ;
 
-InputStmt : READ '(' VarNode ')' {
+InputStmt : READ '(' VarRef ')' {
                 $$ = createNode(0, INTEGER_TYPE, READ_NODE, NULL, $3, NULL, NULL);
             }
             ;
@@ -426,11 +441,12 @@ expr : expr '+' expr  { $$ = createNode(0, INTEGER_TYPE, PLUS_NODE, NULL, $1, $3
      | expr OR expr   { $$ = createNode(0, BOOLEAN_TYPE, OR_NODE, NULL, $1, $3, NULL); }
      | NOT expr       { $$ = createNode(0, BOOLEAN_TYPE, NOT_NODE, NULL, $2, NULL, NULL); }
      | '*' expr %prec U_STAR { $$ = createNode(0, INTEGER_TYPE, DEREF_NODE, NULL, $2, NULL, NULL); }
-     | '&' VarNode    { $$ = createNode(0, INTEGER_POINTER_TYPE, ADDRESS_NODE, NULL, $2, NULL, NULL); }
+     | '&' VarRef     { $$ = createNode(0, INTEGER_POINTER_TYPE, ADDRESS_NODE, NULL, $2, NULL, NULL); }
      | '(' expr ')'   { $$ = $2; }
      | NUM            { $$ = createNode($1, INTEGER_TYPE, CONSTANT, NULL, NULL, NULL, NULL); }
      | '-' NUM        { $$ = createNode(-$2, INTEGER_TYPE, CONSTANT, NULL, NULL, NULL, NULL); }
      | VarNode        { $$ = $1; }
+     | FieldRef       { $$ = $1; }
      | NULLTOK        { $$ = createNode(0, NULL_TYPE, CONSTANT, NULL, NULL, NULL, NULL); }
      | ALLOC '(' ')'  { $$ = createNode(0, ALLOC_TYPE, ALLOC_NODE, NULL, NULL, NULL, NULL); }
      | INITIALIZE '(' ')' { $$ = createNode(0, INTEGER_TYPE, INIT_NODE, NULL, NULL, NULL, NULL); }
@@ -442,8 +458,6 @@ expr : expr '+' expr  { $$ = createNode(0, INTEGER_TYPE, PLUS_NODE, NULL, $1, $3
 
 CallExpr : ID '(' ')'         { $$ = makeCallNode($1, NULL); }
          | ID '(' ArgList ')' { $$ = makeCallNode($1, $3); }
-         | VarNode '.' ID '(' ')' { $$ = makeMethodNode($1, $3, NULL); }
-         | VarNode '.' ID '(' ArgList ')' { $$ = makeMethodNode($1, $3, $5); }
          | FieldRef '(' ')' { $$ = makeMethodNode($1->left, $1->varname, NULL); }
          | FieldRef '(' ArgList ')' { $$ = makeMethodNode($1->left, $1->varname, $3); }
          ;
@@ -456,8 +470,11 @@ VarNode : ID                            { $$ = makeVarNode($1, NULL, NULL); }
         | SELF                          { $$ = makeVarNode("self", NULL, NULL); }
         | ID '[' expr ']'               { $$ = makeVarNode($1, $3, NULL); }
         | ID '[' expr ']' '[' expr ']'  { $$ = makeVarNode($1, $3, $6); }
-        | FieldRef                      { $$ = $1; }
         ;
+
+VarRef : VarNode
+       | FieldRef
+       ;
 
 FieldRef : ID '.' ID        { $$ = makeFieldNode(makeVarNode($1, NULL, NULL), $3); }
          | SELF '.' ID      { $$ = makeFieldNode(makeVarNode("self", NULL, NULL), $3); }
