@@ -218,15 +218,39 @@ tnode* makeFieldNode(tnode* base, char* field) {
 
 tnode* makeMethodCall(tnode* receiver, char* name, tnode* args) {
     ClassMethod* m = CMethodLookup(CByCode(receiver->type), name);
+    ClassMethod* matched = NULL;
+    ClassMethod* v;
+    Paramstruct* p;
+    tnode* a;
+    int match;
     Gsymbol* g;
     tnode* node;
     if(m == NULL) semanticError("unknown method %s", name);
+    for(v = m; v != NULL; v = v->next_variant) {
+        p = v->params;
+        a = args;
+        match = 1;
+        while(p != NULL && a != NULL) {
+            if(!argCompatible(p->type, a->left->type)) {
+                match = 0;
+                break;
+            }
+            p = p->next;
+            a = a->right;
+        }
+        if(match && p == NULL && a == NULL) {
+            matched = v;
+            break;
+        }
+    }
+    if(matched == NULL)
+        semanticError("no matching overloaded method found for %s", name);
     g = calloc(1, sizeof(*g));
     g->name = strdup(name);
-    g->flabel = m->flabel;
-    g->type = m->type;
-    g->paramlist = m->params;
-    node = createNode(0, m->type, METHOD_CALL_NODE, name, args, receiver, NULL);
+    g->flabel = matched->flabel;
+    g->type = matched->type;
+    g->paramlist = matched->params;
+    node = createNode(matched->index, matched->type, METHOD_CALL_NODE, name, args, receiver, NULL);
     node->Gentry = g;
     return node;
 }
@@ -393,9 +417,8 @@ int genFunctionCall(tnode* t, FILE* target_file) {
 
     // 5. Call through the receiver's vtable slot.
     if(t->nodetype == METHOD_CALL_NODE && self_reg >= 0 && isClassType(t->right->type)) {
-        ClassMethod *method = CMethodLookup(CByCode(t->right->type), t->varname);
         int target = getReg();
-        fprintf(target_file, "MOV R%d, %d\n", target, method->index);
+        fprintf(target_file, "MOV R%d, %d\n", target, t->val);
         fprintf(target_file, "ADD R%d, R%d\n", target, vtable_reg);
         fprintf(target_file, "MOV R%d, [R%d]\n", target, target);
         fprintf(target_file, "CALL R%d\n", target);
@@ -854,15 +877,40 @@ static ClassMethod* copyMethods(ClassMethod* m) {
     ClassMethod *head = NULL, *tail = NULL;
     for(; m; m=m->next) {
         ClassMethod* n=calloc(1,sizeof(*n));
+        ClassMethod *source_variant;
+        ClassMethod *variant_tail = NULL;
         *n=*m;
         n->name=strdup(m->name);
         n->next=NULL;
-        /* A copied entry is inherited.  It remains callable through the
-           parent's label, but a declaration in the derived class must be
-           allowed to replace it (virtual override).  `defined` therefore
-           tracks whether this class has declared the method, not whether the
-           inherited implementation exists. */
-        n->defined=0;
+        n->next_variant=NULL;
+        for(source_variant=m; source_variant; source_variant=source_variant->next_variant) {
+            ClassMethod *variant;
+            if(source_variant == m) {
+                variant = n;
+            } else {
+                variant = calloc(1,sizeof(*variant));
+                *variant = *source_variant;
+                variant->name = strdup(source_variant->name);
+                variant->next = NULL;
+                variant->next_variant = NULL;
+                variant_tail->next_variant = variant;
+            }
+            variant->params = NULL;
+            {
+                Paramstruct *source_param;
+                Paramstruct *param_tail = NULL;
+                for(source_param=source_variant->params; source_param; source_param=source_param->next) {
+                    Paramstruct *param = calloc(1,sizeof(*param));
+                    param->name = strdup(source_param->name);
+                    param->type = source_param->type;
+                    if(param_tail) param_tail->next = param;
+                    else variant->params = param;
+                    param_tail = param;
+                }
+            }
+            variant->defined = 0;
+            variant_tail = variant;
+        }
         if(!head) head=n; else tail->next=n; tail=n;
     }
     return head;
@@ -879,17 +927,66 @@ Classtable* CInstall(char* name, char* parent) {
 ClassField* CFieldLookup(Classtable* c,char* n) { ClassField* f; for(f=c?c->fields:NULL;f&&strcmp(f->name,n);f=f->next); return f; }
 ClassMethod* CMethodLookup(Classtable* c,char* n) { ClassMethod* m; for(m=c?c->methods:NULL;m&&strcmp(m->name,n);m=m->next); return m; }
 int CAddField(Classtable* c,char* n,int t) { ClassField *f,*q; int width=isClassType(t)?2:1; if(CFieldLookup(c,n)) return 1; if(c->nfields+width>7)return 2; f=calloc(1,sizeof(*f)); f->name=strdup(n);f->type=t;f->index=c->nfields+1;c->nfields+=width; for(q=c->fields;q&&q->next;q=q->next);if(q)q->next=f;else c->fields=f;return 0; }
-int CAddMethod(Classtable* c,char* n,int t,Paramstruct* p) { ClassMethod *m,*q=CMethodLookup(c,n); if(q){ if(q->defined)return 1; q->type=t;q->params=p;q->flabel=flabel_count++;q->defined=1;return 0;} if(c->nmethods>=8)return 2; m=calloc(1,sizeof(*m));m->name=strdup(n);m->type=t;m->params=p;m->index=c->nmethods++;m->flabel=flabel_count++;m->defined=1;for(q=c->methods;q&&q->next;q=q->next);if(q)q->next=m;else c->methods=m;return 0; }
+int checkSignatureMatch(Paramstruct* p1, Paramstruct* p2) {
+    while(p1 != NULL && p2 != NULL) {
+        if(p1->type != p2->type) return 0;
+        p1 = p1->next;
+        p2 = p2->next;
+    }
+    return p1 == NULL && p2 == NULL;
+}
+int CAddMethod(Classtable* c,char* n,int t,Paramstruct* p) {
+    ClassMethod *m = CMethodLookup(c,n);
+    ClassMethod *v;
+    ClassMethod *new_v;
+    if(m != NULL) {
+        for(v=m; v != NULL; v=v->next_variant) {
+            if(checkSignatureMatch(v->params,p)) {
+                if(v->defined) return 1;
+                v->type=t;
+                v->params=p;
+                v->flabel=flabel_count++;
+                v->defined=1;
+                return 0;
+            }
+            if(v->next_variant == NULL) break;
+        }
+        if(c->nmethods >= VFT_SLOTS) return 2;
+        new_v=calloc(1,sizeof(*new_v));
+        new_v->name=strdup(n);
+        new_v->type=t;
+        new_v->params=p;
+        new_v->index=c->nmethods++;
+        new_v->flabel=flabel_count++;
+        new_v->defined=1;
+        v->next_variant=new_v;
+        return 0;
+    }
+    if(c->nmethods >= VFT_SLOTS) return 2;
+    m=calloc(1,sizeof(*m));
+    m->name=strdup(n);
+    m->type=t;
+    m->params=p;
+    m->index=c->nmethods++;
+    m->flabel=flabel_count++;
+    m->defined=1;
+    for(v=c->methods; v && v->next; v=v->next);
+    if(v) v->next=m; else c->methods=m;
+    return 0;
+}
 int CIsDescendant(Classtable* c,Classtable* p){ for(;c;c=c->parent)if(c==p)return 1;return 0; }
 int CCount(void){return ccount;}
 void CEmitVTables(FILE* fp){
     Classtable *c;
     ClassMethod *m;
+    ClassMethod *v;
     for(c=chead; c; c=c->next) {
         for(m=c->methods; m; m=m->next) {
-            fprintf(fp, "MOV R0, %d\n", VFT_BASE + c->class_index * VFT_SLOTS + m->index);
-            fprintf(fp, "MOV R1, F%d\n", m->flabel);
-            fprintf(fp, "MOV [R0], R1\n");
+            for(v=m; v; v=v->next_variant) {
+                fprintf(fp, "MOV R0, %d\n", VFT_BASE + c->class_index * VFT_SLOTS + v->index);
+                fprintf(fp, "MOV R1, F%d\n", v->flabel);
+                fprintf(fp, "MOV [R0], R1\n");
+            }
         }
     }
 }

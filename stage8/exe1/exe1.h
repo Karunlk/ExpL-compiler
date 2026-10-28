@@ -60,6 +60,7 @@ typedef struct ClassMethod {
     int index;
     int flabel;
     int defined;
+    struct ClassMethod* next_variant;
     struct ClassMethod* next;
 } ClassMethod;
 typedef struct Classtable {
@@ -100,6 +101,7 @@ Classtable* CLookup(char* name);
 Classtable* CByCode(int code);
 ClassField* CFieldLookup(Classtable* c, char* name);
 ClassMethod* CMethodLookup(Classtable* c, char* name);
+int checkSignatureMatch(Paramstruct* p1, Paramstruct* p2);
 int CAddField(Classtable* c, char* name, int type);
 int CAddMethod(Classtable* c, char* name, int type, Paramstruct* p);
 int CIsDescendant(Classtable* child, Classtable* parent);

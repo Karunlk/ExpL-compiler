@@ -171,10 +171,10 @@ ClassDef : CName '{' DECL ClassDecls ENDDECL ClassMethodDefs '}' { cur_class = N
 CName : ID { cur_class=CInstall($1,NULL); if(!cur_class) declError("invalid class %s",$1); }
       | ID EXTENDS ID { cur_class=CInstall($1,$3); if(!cur_class) declError("invalid class extension %s",$1); };
 ClassDecls : ClassDecls Type ID ';' { int r=CAddField(cur_class,$3,$2); if(r) declError(r==1 ? "duplicate class field %s" : "too many class fields in %s",$3); }
-           | ClassDecls Type ID '(' ParamList ')' ';' { int r=CAddMethod(cur_class,$3,$2,$5); if(r) declError("duplicate method %s",$3); }
+          | ClassDecls Type ID '(' ParamList ')' ';' { int r=CAddMethod(cur_class,$3,$2,$5); if(r) declError(r==1 ? "duplicate method %s" : "too many class methods in %s",$3); }
            | /* empty */ ;
 ClassMethodDefs : ClassMethodDefs ClassMethodDef | /* empty */ ;
-ClassMethodDef : Type ID '(' ParamList ')' { ClassMethod *m=CMethodLookup(cur_class,$2); Lsymbol *self_slot; if(m==NULL || m->type!=$1) declError("method %s has no declaration",$2); LReset(); if(LInstall("self",cur_class->code)) declError("duplicate self parameter", "self"); self_slot=LLookup("self"); self_slot->binding=-3; if(LInstallMethodParams($4)) declError("duplicate method parameter in %s",$2); setCurrentFunction(NULL,$1); snprintf(func_label,sizeof(func_label),"F%d",m->flabel); if(method_out==NULL) method_out=fopen("methods.tmp","w+"); } '{' LdeclBlock Body '}' { genFunction(func_label,LLocalCount(),$9,method_out); } ;
+ClassMethodDef : Type ID '(' ParamList ')' { ClassMethod *m=CMethodLookup(cur_class,$2); ClassMethod *v; Lsymbol *self_slot; for(v=m; v && !checkSignatureMatch(v->params,$4); v=v->next_variant); if(v==NULL || v->type!=$1) declError("method %s has no declaration",$2); LReset(); if(LInstall("self",cur_class->code)) declError("duplicate self parameter", "self"); self_slot=LLookup("self"); self_slot->binding=-3; if(LInstallMethodParams($4)) declError("duplicate method parameter in %s",$2); setCurrentFunction(NULL,$1); snprintf(func_label,sizeof(func_label),"F%d",v->flabel); if(method_out==NULL) method_out=fopen("methods.tmp","w+"); } '{' LdeclBlock Body '}' { genFunction(func_label,LLocalCount(),$9,method_out); } ;
 
 /* ---------------- Global declarations ---------------- */
 
